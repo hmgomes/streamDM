@@ -18,6 +18,7 @@
 package org.apache.spark.streamdm.classifiers.trees
 
 import org.apache.spark.streamdm.core.Example
+import org.apache.spark.ml.linalg.Vector
 
 /**
  * ConditionalTest is an abstract class for  conditional tests, used for
@@ -32,6 +33,8 @@ abstract class ConditionalTest(var fIndex: Int) extends Serializable {
    * @return the number of the branch for an example, -1 if unknown.
    */
   def branch(example: Example): Int
+
+  def branch(vector: Vector): Int
 
   /**
    * Gets whether the number of the branch for an example is known.
@@ -87,6 +90,15 @@ class NumericBinaryTest(fIndex: Int, val value: Double, val isequalTest: Boolean
     }
   }
 
+  override def branch(vector: Vector): Int = {
+    val v = vector(fIndex)
+    if (isequalTest) {
+      if (v == value) 0 else 1
+    } else {
+      if (v < value) 0 else 1
+    }
+  }
+
   /**
    * Gets the number of maximum branches, -1 if unknown.
    *
@@ -134,6 +146,9 @@ class NominalBinaryTest(fIndex: Int, val value: Double)
     if (example.featureAt(fIndex) == value) 0 else 1
   }
 
+  // TODO: Implement binary test for binary features
+  override def branch(vector: Vector): Int = ???
+
   /**
    * Gets the number of maximum branches, -1 if unknown.
    *
@@ -175,6 +190,9 @@ class NominalMultiwayTest(fIndex: Int, val numFeatureValues: Int)
     // todo process missing value
     example.featureAt(fIndex).toInt
   }
+
+  // TODO: Implement multi-way conditional test for nominal features
+  override def branch(vector: Vector): Int = ???
 
   /**
    * Gets the number of maximum branches, -1 if unknown.
@@ -222,6 +240,9 @@ class NumericBinaryRulePredicate(fIndex: Int, val value: Double, val operator: I
       case _ => if (v == value) 0 else 1
     }
   }
+
+  // TODO: Implement the binary rule predicate test for branch
+  override def branch(vector: Vector): Int = ???
 
   /**
    * Gets the number of maximum branches, -1 if unknown.

@@ -17,17 +17,28 @@
 
 package org.apache.spark.streamdm.classifiers.trees
 
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashSet
-import scala.math.{ log => math_log, sqrt }
+import scala.math.{sqrt, log => math_log}
 import scala.collection.mutable.Queue
 import org.apache.spark.internal.Logging
 import com.github.javacliparser._
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions.{col, lit, udf, window}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streaming.dstream._
 import org.apache.spark.streamdm.utils.Utils.{argmax, normal}
 import org.apache.spark.streamdm.core._
 import org.apache.spark.streamdm.classifiers._
 import org.apache.spark.streamdm.core.specification.ExampleSpecification
+import org.apache.spark.sql._
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.sql.ForeachWriter
+import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
+import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode, StreamingQueryListener}
+import org.apache.spark.sql.execution.streaming.Sink
+
+import org.apache.spark.sql.Encoders._
 
 /**
  *
@@ -63,7 +74,15 @@ import org.apache.spark.streamdm.core.specification.ExampleSpecification
  * controls whether to split at leaf of the last Example of the RDD, or at every leaf.
  * </ul>
  */
-class HoeffdingTree extends Classifier {
+
+//case class HTModelState(model: HoeffdingTreeModel)
+case class DummyEventObject(dummy: Int)
+case class InputRow(X: Vector, y: Int)
+
+//case class InputRow(classLabel: Int)
+
+
+class HoeffdingTree extends Classifier with Logging {
 
   type T = HoeffdingTreeModel
 
@@ -106,58 +125,181 @@ class HoeffdingTree extends Classifier {
     "The max depth of tree to stop growing",
     20, 0, Int.MaxValue)
 
-  var model: HoeffdingTreeModel = null
+  var schema: StructType = null
 
-  var espec: ExampleSpecification = null
+//  var model: HoeffdingTreeModel = null
 
   /* Init the model used for the Learner*/
-  override def init(exampleSpecification: ExampleSpecification): Unit = {
-    espec = exampleSpecification
-    val numFeatures = espec.numberInputFeatures()
-    val outputSpec = espec.outputFeatureSpecification(0)
-    val numClasses = outputSpec.range()
-    model = new HoeffdingTreeModel(espec, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
-      true, binaryOnlyOption.isSet(), numGraceOption.getValue(),
-      tieThresholdOption.getValue, splitConfidenceOption.getValue(),
-      learningNodeOption.getValue(), nbThresholdOption.getValue(),
-      noPrePruneOption.isSet(), removePoorFeaturesOption.isSet(), splitAllOption.isSet(),
-      maxDepthOption.getValue())
-    model.init()
+  override def init(exampleSpecification: ExampleSpecification): Unit = ???
+//  {
+//    espec = exampleSpecification
+//    val numFeatures = espec.numberInputFeatures()
+//    val outputSpec = espec.outputFeatureSpecification(0)
+//    val numClasses = outputSpec.range()
+//    model = new HoeffdingTreeModel(espec, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
+//      true, binaryOnlyOption.isSet(), numGraceOption.getValue(),
+//      tieThresholdOption.getValue, splitConfidenceOption.getValue(),
+//      learningNodeOption.getValue(), nbThresholdOption.getValue(),
+//      noPrePruneOption.isSet(), removePoorFeaturesOption.isSet(), splitAllOption.isSet(),
+//      maxDepthOption.getValue())
+//    model.init()
+//  }
+
+  override def init(schema: StructType): Unit = {
+    this.schema = schema
+    val numFeatures = schema.fields.length - 1 // Ignore the class field
+    val numClasses = this.schema("class").metadata.getLong("num_class").toInt
+
+    HoeffdingTreeLearnerObject.model  = new HoeffdingTreeModel(this.schema, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
+          true, binaryOnlyOption.isSet(), numGraceOption.getValue(),
+          tieThresholdOption.getValue, splitConfidenceOption.getValue(),
+          learningNodeOption.getValue(), nbThresholdOption.getValue(),
+          noPrePruneOption.isSet(), removePoorFeaturesOption.isSet(), splitAllOption.isSet(),
+          maxDepthOption.getValue())
+
+    HoeffdingTreeLearnerObject.model.init()
   }
 
   /* Gets the current model used for the Learner.
    * 
    * @return the Model object used for training
    */
-  override def getModel: HoeffdingTreeModel = model
+  override def getModel: HoeffdingTreeModel = HoeffdingTreeLearnerObject.model
 
   /* Train the model from the stream of instances given for training.
    *
    * @param input a stream of instances
    * @return Unit
    */
-  override def train(input: DStream[Example]): Unit = {
-    input.foreachRDD {
-      rdd =>
-        val tmodel = rdd.aggregate(
-          new HoeffdingTreeModel(model))(
-            (mod, example) => { mod.update(example) },
-          (mod1, mod2) => { mod1.merge(mod2, false) })
-        model = model.merge(tmodel, true)
-    }
+  def train(input: DStream[Example]): Unit = ???
+  //    {
+  //      input.foreachRDD {
+  //      rdd =>
+  //        val tmodel = rdd.aggregate(
+  //          new HoeffdingTreeModel(model))(
+  //            (mod, example) => { mod.update(example) },
+  //          (mod1, mod2) => { mod1.merge(mod2, false) })
+  //        model = model.merge(tmodel, true)
+  //    }
+
+  override def train(stream: DataFrame): Unit = {
+    logInfo("train invoked")
+
+    import stream.sparkSession.implicits._
+
+//    implicit val htModelEncoder = Encoders.kryo[HoeffdingTreeModel]
+
+    val query = stream
+      .selectExpr("X", "class as y").as[InputRow]
+
+      .groupByKey( _.y ) // inputRow.row.getInt( inputRow.row.schema.fieldIndex("class") )) //(window($"processingTime", "20 seconds", "5 seconds"))
+      .mapGroupsWithState(GroupStateTimeout.NoTimeout)(updateAcrossEvents)
+
+      .writeStream
+      .queryName("train-query")
+      .format("console")
+      .outputMode("update")
+      .start()
+
+//      .outputMode("update")
+//      .format("console")
+//      .start()
+
+    query.awaitTermination()
+
+//    val query = stream
+//      .writeStream
+//      .queryName("train-query")
+//      .outputMode("update")
+//      .option("checkpointLocation", "../data/tmp/train-checkpoint")
+//      .format("org.apache.spark.streamdm.classifiers.trees.HoeffdingTreeTrainSinkProvider")
+//      .start()
+
+
+
+//    val writer = new TrainingWriter(new HTModelState(1))
+//
+////    this.model.merge(writer.executorModel, true)
+//
+//    println("this.model.description in train(stream: DataFrame) = " + this.model.description())
+//
+//    val query = stream
+//      .writeStream
+//      .queryName("train-query")
+//      .foreach(writer)
+
+//      .writeStream
+//      .queryName("training-query")
+//      .foreach(writer)
+//      .start()
   }
 
-  /* Predict the label of the Instance, given the current model
-   *
-   * @param instance the Instance which needs a class predicted
-   * @return a tuple containing the original instance and the predicted value
-   */
-  def predict(input: DStream[Example]): DStream[(Example, Double)] = {
-    input.map { x => (x, model.predict(x)) }
+
+//  class trainingWriter(val model: HoeffdingTreeModel) extends ForeachWriter[Row] {
+//
+//    // This is done in the driver, thus we copy the original model to all executors...
+//    val executorModel: HoeffdingTreeModel = model
+//
+//    override def open(partitionId: Long, version: Long): Boolean = true
+//    override def process(row: Row) = {
+//      val indexOfX: Int = row.schema.fieldIndex("X")
+//      val vector:Vector = row(indexOfX).asInstanceOf[Vector]
+//
+//      println("[EXECUTOR CODE] Field index of X = %d and value = %s".format(indexOfX, vector.toString()))
+//    }
+//    override def close(errorOrNull: Throwable) = {}
+//  }
+
+
+  override def predict(stream: DataFrame): DataFrame = {
+    // User defined function (UDF) to apply the model.predict to the column X from stream DataFrame
+    val predictionsUDF = udf { (features: Vector) =>
+      HoeffdingTreeLearnerObject.model.predict(features)
+    }
+    val streamWithPredictions = stream.withColumn("predicted", predictionsUDF(stream.col("X")))
+    streamWithPredictions
   }
+
+
+  def updateAcrossEvents(processingTime: Int,
+                          rows: Iterator[InputRow],
+                         oldState: GroupState[DummyEventObject]): DummyEventObject = {
+
+    logInfo("updateAcrossEvents")
+
+    val currentModel = if(oldState.exists) oldState.get else DummyEventObject(1)
+
+    if(!oldState.exists) {
+      HoeffdingTreeLearnerObject.model = new HoeffdingTreeModel(this.schema, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
+        true, binaryOnlyOption.isSet(), numGraceOption.getValue(),
+        tieThresholdOption.getValue, splitConfidenceOption.getValue(),
+        learningNodeOption.getValue(), nbThresholdOption.getValue(),
+        noPrePruneOption.isSet(), removePoorFeaturesOption.isSet(), splitAllOption.isSet(),
+        maxDepthOption.getValue())
+
+      HoeffdingTreeLearnerObject.model.init()
+    }
+
+    for(input <- rows) {
+      HoeffdingTreeLearnerObject.model.update(input.X, input.y, 1.0)
+      oldState.update(new DummyEventObject(currentModel.dummy+1))
+    }
+
+    currentModel
+  }
+
+  // TODO: Remove
+  def predict(input: DStream[Example]): DStream[(Example, Double)] = ???
 }
 
-class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverType: Int = 0,
+/***
+  * The HoeffdingTree object used to hold the model
+  */
+object HoeffdingTreeLearnerObject {
+  var model: HoeffdingTreeModel = null
+}
+
+class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 0,
   val splitCriterion: SplitCriterion = new InfoGainSplitCriterion(),
   var growthAllowed: Boolean = true, val binaryOnly: Boolean = true,
   val graceNum: Int = 200, val tieThreshold: Double = 0.05,
@@ -168,9 +310,8 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
 
   type T = HoeffdingTreeModel
 
-  val numFeatures = espec.numberInputFeatures()
-  val outputSpec = espec.outputFeatureSpecification(0)
-  val numClasses = outputSpec.range()
+  val numFeatures = schema.fields.length - 1 // Ignore the class field
+  val numClasses = this.schema("class").metadata.getLong("num_class").toInt
 
   var activeNodeCount: Int = 0
   var inactiveNodeCount: Int = 0
@@ -180,12 +321,10 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
   var baseNumExamples: Int = 0
   var blockNumExamples: Int = 0
 
-  var lastExample: Example = null
-  var listExamples: ArrayBuffer[Example] = new ArrayBuffer[Example]()
   var root: Node = null
 
   def this(model: HoeffdingTreeModel) {
-    this(model.espec, model.numericObserverType, model.splitCriterion, model.growthAllowed,
+    this(model.schema, model.numericObserverType, model.splitCriterion, model.growthAllowed,
       model.binaryOnly, model.graceNum, model.tieThreshold, model.splitConfedence,
       model.learningNodeType, model.nbThreshold, model.noPrePrune)
     activeNodeCount = model.activeNodeCount
@@ -194,8 +333,9 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
     this.decisionNodeCount = model.decisionNodeCount
     baseNumExamples = model.baseNumExamples + model.blockNumExamples
     this.root = model.root
-    this.lastExample = model.lastExample
-    this.listExamples = model.listExamples
+
+//    for (i <- 0 until this.root.blockClassDistribution.length)
+//      this.root.blockClassDistribution(i) += model.root.blockClassDistribution(i)
   }
 
   /* init the model */
@@ -210,25 +350,49 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
    * @param input an example instance
    * @return current model
    */
-  override def update(example: Example): HoeffdingTreeModel = {
+  override def update(example: Example): HoeffdingTreeModel = ???
+//  {
+//    blockNumExamples += 1
+//
+//    if(blockNumExamples % graceNum == 1){
+//      listExamples.append(example)
+//    }
+//    lastExample = example
+//    if (root == null) {
+//      init
+//    }
+//    // filter the example instance to the responding FoundNode
+//    val foundNode = root.filterToLeaf(example, null, -1)
+//    var leafNode = foundNode.node
+//
+//    if (leafNode.isInstanceOf[LearningNode]) {
+//      val learnNode = leafNode.asInstanceOf[LearningNode]
+//      //update the learning node
+//      learnNode.learn(this, example)
+//    }
+//    this
+//  }
+
+  override def update(vector: Vector, classLabel: Int, weight: Double): HoeffdingTreeModel = {
     blockNumExamples += 1
 
-    if(blockNumExamples % graceNum == 1){
-      listExamples.append(example)
-    }
-    lastExample = example
+    logInfo("!!!!! Invoked UPDATE !!!!!!")
+
+//    println(s"blockNumExamples = ($blockNumExamples )")
+
     if (root == null) {
       init
     }
-    // filter the example instance to the responding FoundNode
-    val foundNode = root.filterToLeaf(example, null, -1)
-    var leafNode = foundNode.node
+    val foundNode = root.filterToLeaf(vector, null, -1)
+    val leafNode = foundNode.node
 
     if (leafNode.isInstanceOf[LearningNode]) {
       val learnNode = leafNode.asInstanceOf[LearningNode]
-      //update the learning node 
-      learnNode.learn(this, example)
+//      learnNode.learn(this, vector, classLabel, weight)
+
+learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE, MUST BE CHANGED
     }
+
     this
   }
 
@@ -285,7 +449,7 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
     if (bestSuggestions.length < 2) {
       bestSuggestions.length > 0
     } else {
-      val hoeffdingBound = computeHeoffdingBound(activeNode)
+      val hoeffdingBound = computeHoeffdingBound(activeNode)
       val length = bestSuggestions.length
       if (hoeffdingBound < tieThreshold ||
         bestSuggestions.last.merit - bestSuggestions(length - 2).merit > hoeffdingBound) {
@@ -317,37 +481,13 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
     */
   def merge(that: HoeffdingTreeModel, trySplit: Boolean): HoeffdingTreeModel = {
 
-    this.lastExample = that.lastExample
-    this.listExamples.appendAll(that.listExamples)
+    println("First merge on the HoeffdingTreeModel class")
     // merge root with another root
     root.merge(that.root, trySplit)
-    /**
-      *  Merge, then split. We have two choices:
-      *  - Split N times, with N = batchSize/gracePeriod
-      *  - Split at all leaves. Search for all leaves and split.
-      */
+
     if (trySplit) {
       if(this.treeHeight() < maxDepth){
-        if (!splitAll) {
-          var times = 0
-          listExamples.toArray.foreach{
-            x=> {
-              val foundNode = root.filterToLeaf(x, null, -1)
-              foundNode.node match {
-                case activeNode: ActiveLearningNode => {
-                  attemptToSplit(activeNode, foundNode.parent, foundNode.index)
-                }
-                // nhnminh: to fix the error of scala.matchError
-                case activeNode: InactiveLearningNode => {
-                  logInfo("InactiveLearningNode Found!")
-                }
-              }
-              times=times+1
-            }
 
-          }
-        } else {
-          //try to split all leaf nodes
           val queue = new Queue[FoundNode]()
           queue.enqueue(new FoundNode(root, null, -1))
           var numLeaves = 0
@@ -368,33 +508,46 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
                   toSplit = toSplit + 1
                 }
               }
-              case other: Node => {}
+              case _: Node => {}
             }
           }
         }
-        listExamples = new ArrayBuffer[Example]()
-      }
       else{
         logInfo("Tree's height exceeds maxDepth")
-        listExamples = new ArrayBuffer[Example]()
       }
-
     }
     this
   }
 
   /* predict the class of example */
-  def predict(example: Example): Double = {
-    if (root != null) {
-      val foundNode = root.filterToLeaf(example, null, -1)
-      var leafNode = foundNode.node
-      if (leafNode == null) {
-        leafNode = foundNode.parent
-      }
-      argmax(leafNode.classVotes(this, example))
-    } else {
-      0.0
-    }
+  def predict(example: Example): Double = ???
+//  {
+//    if (root != null) {
+//      val foundNode = root.filterToLeaf(example, null, -1)
+//      var leafNode = foundNode.node
+//      if (leafNode == null) {
+//        leafNode = foundNode.parent
+//      }
+//      argmax(leafNode.classVotes(this, example))
+//    } else {
+//      0.0
+//    }
+//  }
+
+  def predict(vector: Vector): Double = {
+    val r = new scala.util.Random
+    r.nextInt(2)
+
+//    if(this.root != null) {
+//      val foundNode = root.filterToLeaf(vector, null, -1)
+//      var leafNode = foundNode.node
+//      if (leafNode == null) {
+//          leafNode = foundNode.parent
+//        }
+//        argmax(leafNode.classVotes(this, vector))
+//      } else {
+//        0.0
+//      }
   }
 
   /* create a new ActiveLearningNode
@@ -404,10 +557,10 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
  * @return a new LearningNode
  */
   def createLearningNode(nodeType: Int, classDistribution: Array[Double]): LearningNode = nodeType match {
-    case 0 => new ActiveLearningNode(classDistribution, espec.in)
-    case 1 => new LearningNodeNB(classDistribution, espec.in)
-    case 2 => new LearningNodeNBAdaptive(classDistribution, espec.in)
-    case _ => new ActiveLearningNode(classDistribution, espec.in)
+    case 0 => new ActiveLearningNode(classDistribution, this.schema)
+    case 1 => new LearningNodeNB(classDistribution, this.schema)
+    case 2 => new LearningNodeNBAdaptive(classDistribution, this.schema)
+    case _ => new ActiveLearningNode(classDistribution, this.schema)
   }
 
   /* create a new ActiveLearningNode
@@ -417,10 +570,10 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
  * @return a new LearningNode
  */
   def createLearningNode(nodeType: Int, numClasses: Int): LearningNode = nodeType match {
-    case 0 => new ActiveLearningNode(new Array[Double](numClasses), espec.in)
-    case 1 => new LearningNodeNB(new Array[Double](numClasses), espec.in)
-    case 2 => new LearningNodeNBAdaptive(new Array[Double](numClasses), espec.in)
-    case _ => new ActiveLearningNode(new Array[Double](numClasses), espec.in)
+    case 0 => new ActiveLearningNode(new Array[Double](numClasses), this.schema)
+    case 1 => new LearningNodeNB(new Array[Double](numClasses), this.schema)
+    case 2 => new LearningNodeNBAdaptive(new Array[Double](numClasses), this.schema)
+    case _ => new ActiveLearningNode(new Array[Double](numClasses), this.schema)
   }
 
   /* create a new ActiveLearningNode with another LearningNode
@@ -491,7 +644,7 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
    * @param activeNode 
    * @return double value
    */
-  def computeHeoffdingBound(activeNode: ActiveLearningNode): Double = {
+  def computeHoeffdingBound(activeNode: ActiveLearningNode): Double = {
     val rangeMerit = splitCriterion.rangeMerit(activeNode.classDistribution)
     val heoffdingBound = sqrt(rangeMerit * rangeMerit * math_log(1.0 / this.splitConfedence)
       / (activeNode.weight() * 2))
@@ -530,4 +683,65 @@ class HoeffdingTreeModel(val espec: ExampleSpecification, val numericObserverTyp
       0.0
     }
   }
+}
+
+
+
+
+case class TrainSink (
+                     sqlContext: SQLContext,
+                     parameters: Map[String, String],
+                     partitionColumns: Seq[String],
+                     outputMode: OutputMode) extends Sink {
+
+  override def addBatch(batchId: Long, stream: DataFrame): Unit = {
+    println(s"TrainSink.addBatch($batchId)")
+    //        stream.explain()
+
+//    val microbatch = stream.sparkSession.createDataFrame(
+//      stream.sparkSession.sparkContext.parallelize(stream.collect()), stream.schema)
+
+//    println("How many instances are in the microbatch now = " + microbatch.count())
+
+    // Create the executor copy
+//    val executorModel: HoeffdingTreeModel = new HoeffdingTreeModel(HoeffdingTreeLearnerObject.model)
+//
+//    stream.foreach(row => {
+//      val indexOfX: Int = row.schema.fieldIndex("X")
+//      val indexOfClass: Int = row.schema.fieldIndex("class")
+//      val vector:Vector = row(indexOfX).asInstanceOf[Vector]
+//      val classLabel: Int = row(indexOfClass).asInstanceOf[Int]
+//
+//      // TODO: Weight hard coded to 1.0, might not be ideal for ensembling methods that manipulate it.
+//      executorModel.update(vector, classLabel, 1.0)
+//    } )
+//
+//    HoeffdingTreeLearnerObject.model.merge(executorModel, true)
+
+//    println("Accessing the model from HoeffdingTreeLearnerObject in the Sink = ")
+//    println(HoeffdingTreeLearnerObject.model.description())
+//    println(s"\tBlockNumExamples = " + HoeffdingTreeLearnerObject.model.blockNumExamples)
+//    microbatch.show(20)
+  }
+
+
+}
+
+
+class HoeffdingTreeTrainSinkProvider extends StreamSinkProvider
+  with DataSourceRegister {
+
+  override def createSink(
+                           sqlContext: SQLContext,
+                           parameters: Map[String, String],
+                           partitionColumns: Seq[String],
+                           outputMode: OutputMode): Sink = {
+    TrainSink(
+      sqlContext,
+      parameters,
+      partitionColumns,
+      outputMode)
+  }
+
+  override def shortName(): String = "hoeffdingtree-train"
 }

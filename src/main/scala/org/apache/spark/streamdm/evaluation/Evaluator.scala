@@ -20,6 +20,8 @@ package org.apache.spark.streamdm.evaluation
 import java.io.Serializable
 
 import com.github.javacliparser.Configurable
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.core.Example
 import org.apache.spark.streamdm.core.specification.ExampleSpecification
 import org.apache.spark.streaming.dstream.DStream
@@ -29,19 +31,19 @@ import org.apache.spark.streaming.dstream.DStream
  */
 abstract class Evaluator extends Configurable with Serializable{
 
-  var exampleLearnerSpecification: ExampleSpecification = null
+  var schema: StructType = null
 
-  def setExampleSpecification(exampleSpecification: ExampleSpecification) = {
-    exampleLearnerSpecification = exampleSpecification
+  def setSchema(schema: StructType) = {
+    this.schema = schema
   }
 
   /**
    * Process the result of a predicted stream of Examples and Doubles.
    *
-   * @param input the input stream containing (Example,Double) tuples
-   * @return a stream of String with the processed evaluation
+   * @param stream the input stream containing. It should contain a row with the ground truth class label and predicted y
+   * @return the same dataframe as input with additional columns representing the results
    */
-  def addResult(input: DStream[(Example, Double)]):  DStream[String]
+  def addResult(stream: DataFrame): DataFrame
 
   /**
     * Obtains the header definition

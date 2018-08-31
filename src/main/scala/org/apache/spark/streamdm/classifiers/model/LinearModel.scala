@@ -17,6 +17,7 @@
 
 package org.apache.spark.streamdm.classifiers.model
 
+import org.apache.spark.ml.linalg
 import org.apache.spark.streamdm.core._
 
 /**
@@ -72,4 +73,6 @@ class LinearModel(lossFunction: Loss, initialModel: Instance,numberFeatures:Int)
     loss.prob(modelInstance.dot(instance.in.set(numFeatures,1.0)))
   
   override def toString = "Model %s".format(modelInstance.toString)
+
+  override def update(vector: linalg.Vector, classLabel: Int, weight: Double) = ???
 }

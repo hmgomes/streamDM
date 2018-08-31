@@ -282,13 +282,17 @@ class GaussianNumericFeatureClassObserver(val numClasses: Int, val fIndex: Int, 
    */
   override def observeClass(cIndex: Double, fValue: Double, weight: Double): Unit = {
     if (false) {
-      // todo, process missing value
+      // TODO: process missing value
 
     } else {
+//      println("observeClass classIndex = " + cIndex + " featureValue = " + fValue +
+//      " minValuePerClass("+cIndex+") = " + minValuePerClass(cIndex.toInt))
+
       if (minValuePerClass(cIndex.toInt) > fValue)
         minValuePerClass(cIndex.toInt) = fValue
       if (maxValuePerClass(cIndex.toInt) < fValue)
         maxValuePerClass(cIndex.toInt) = fValue
+
       estimators(cIndex.toInt).observe(fValue, weight)
     }
   }
@@ -405,18 +409,21 @@ class GaussianNumericFeatureClassObserver(val numClasses: Int, val fIndex: Int, 
  * object FeatureClassObserver for create FeatureClassObserver.
  */
 object FeatureClassObserver {
-  def createFeatureClassObserver(numClasses: Int, fIndex: Int,
-    featureSpec: FeatureSpecification): FeatureClassObserver = {
-    if (featureSpec.isNominal())
-      new NominalFeatureClassObserver(numClasses, fIndex, featureSpec.range())
-    else
-      new GaussianNumericFeatureClassObserver(numClasses, fIndex)
+  def createFeatureClassObserver(numClasses: Int, fIndex: Int): FeatureClassObserver = {
+//    if (featureSpec.isNominal())
+//      new NominalFeatureClassObserver(numClasses, fIndex, featureSpec.range())
+//    else
+    // TODO: This is always assuming the feature is numeric!
+    new GaussianNumericFeatureClassObserver(numClasses, fIndex)
   }
 
   def createFeatureClassObserver(observer: FeatureClassObserver): FeatureClassObserver = {
-    if (observer.isInstanceOf[NominalFeatureClassObserver])
-      new NominalFeatureClassObserver(observer.asInstanceOf[NominalFeatureClassObserver])
-    else if (observer.isInstanceOf[GaussianNumericFeatureClassObserver])
+//    if (observer.isInstanceOf[NominalFeatureClassObserver])
+//      new NominalFeatureClassObserver(observer.asInstanceOf[NominalFeatureClassObserver])
+//    else
+
+    // TODO: This test is unnecessary if we always assume the features are numeric
+    if (observer.isInstanceOf[GaussianNumericFeatureClassObserver])
       new GaussianNumericFeatureClassObserver(observer.asInstanceOf[GaussianNumericFeatureClassObserver])
     else new NullFeatureClassObserver
   }

@@ -111,7 +111,7 @@ class EvaluatePrequential extends Task {
   val evaluatorOption:ClassOption = new ClassOption("evaluator", 'e',
     "Evaluator to use", classOf[Evaluator], "BasicClassificationEvaluator")
   val streamReaderOption:ClassOption = new ClassOption("streamReader", 's',
-    "Stream reader to use", classOf[StreamReader], "SocketTextStreamReader")
+    "Stream reader to use", classOf[StreamReader], "DirectoryReader")
   val resultsWriterOption:ClassOption = new ClassOption("resultsWriter", 'w',
     "Stream writer to use", classOf[StreamWriter], "PrintStreamWriter")
   

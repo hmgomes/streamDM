@@ -1,6 +1,7 @@
 package org.apache.spark.streamdm
 
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.classification.RandomForestClassifier
@@ -11,7 +12,7 @@ object structuredStreamingTest {
   def main(args : Array[String]): Unit = {
     Logger.getLogger("org").setLevel(Level.ERROR)
 
-    streamingPredictionsFromFile()
+    streamingPredictionsFromFile(smallDfPath = "/Users/heitor/Desktop/data/covtype_small.csv")
 //    streamingPredictionsFromNetwork()
   }
 
@@ -69,7 +70,7 @@ object structuredStreamingTest {
     // Obtain the predictions from the
     val predictedAssembledRows = model.transform(assembledRows)
 
-    // Start running the query that prints the running counts to the console
+    // Start running the query that prints the predictions to the console
     val query = predictedAssembledRows
       .writeStream
       .outputMode("update")
@@ -79,7 +80,8 @@ object structuredStreamingTest {
     query.awaitTermination()
   }
 
-  def streamingPredictionsFromFile(): Unit = {
+  def streamingPredictionsFromFile(smallDfPath: String = "/Users/heitor/Desktop/data/iris_small.csv",
+                                   streamsPath: String = "/Users/heitor/Desktop/data/stream"): Unit = {
     val spark: SparkSession =
       SparkSession
         .builder()
@@ -92,7 +94,7 @@ object structuredStreamingTest {
       .read
       .option("header", true)
       .option("inferSchema", true)
-      .csv("/Users/heitor/Desktop/data/iris_small.csv")
+      .csv(smallDfPath )
 
     irisDataFrame.printSchema()
 
@@ -110,18 +112,18 @@ object structuredStreamingTest {
 
     //    HERE STARTS THE STREAMING PREDICTIONS PART!
 
-    val rows = spark.readStream
-      .format("csv")
-      .schema(irisDataFrame.schema)
-      .option("maxFilesPerTrigger", 1)
-      .load("/Users/heitor/Desktop/data/stream")
+    val rows : DataFrame = spark.readStream
+        .format("csv")
+        .schema(irisDataFrame.schema)
+        .option("maxFilesPerTrigger", 1)
+        .load(streamsPath)
 
     // Use the "assembler" created before to create the X from the Dataset "rows".
     val assembledRows = assembler.transform(rows)
     // Obtain the predictions from the
     val predictedAssembledRows = model.transform(assembledRows)
 
-    // Start running the query that prints the running counts to the console
+    // Start running the query that prints the predictions to the console
     val query = predictedAssembledRows
       .writeStream
       .outputMode("update")
@@ -133,7 +135,4 @@ object structuredStreamingTest {
 
   // Must read the Schema from a file
   // It can be a short version of the dataset
-
-
-
 }

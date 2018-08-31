@@ -22,24 +22,27 @@ import org.apache.spark.streamdm.core.specification.ExampleSpecification
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
 import com.github.javacliparser.Configurable
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 /**
- * Abstract class for outputing a DStream of Examples to be used 
+ * Abstract class for outputting a DStream of Examples to be used
  * inside tasks.
  */
 abstract class StreamReader extends Configurable {
+
   /**
-   * Obtains a stream of examples.
-   *
-   * @param ssc a Spark Streaming context
-   * @return a stream of Examples
-   */
-  def getExamples(ssc:StreamingContext): DStream[Example]
+    * Obtains a DataFrame stream of instances. Assumes a feature named "class" in the Schema, all other features
+    * are assembled as part of "X".
+    *
+    * @return a DataFrame stream
+    */
+  def getData(): DataFrame
 
   /**
    * Obtains the specification of the examples in the stream.
    *
-   * @return an ExampleSpecification of the features
+   * @return schema of the features
    */
-  def getExampleSpecification(): ExampleSpecification
+  def getSchema(): StructType
 }

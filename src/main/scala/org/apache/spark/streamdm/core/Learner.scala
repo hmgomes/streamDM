@@ -19,6 +19,8 @@ package org.apache.spark.streamdm.core
 
 import org.apache.spark.streaming.dstream._
 import com.github.javacliparser.Configurable
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.core.specification.ExampleSpecification
 
 
@@ -39,6 +41,8 @@ trait Learner extends Configurable  with Serializable {
    */
   def init(exampleSpecification: ExampleSpecification): Unit
 
+  def init(schema: StructType): Unit
+
   /** 
    * Train the model based on the algorithm implemented in the learner, 
    * from the stream of Examples given for training.
@@ -46,6 +50,23 @@ trait Learner extends Configurable  with Serializable {
    * @param input a stream of Examples
    */
   def train(input: DStream[Example]): Unit
+
+  def train(stream: DataFrame): Unit
+
+//  /**
+//    * Init the model based on the algorithm implemented in the learner.
+//    *
+//    * @param schema the ExampleSpecification of the input stream.
+//    */
+//  def init(schema: StructType): Unit
+//
+//  /**
+//    * Train the model based on the algorithm implemented in the learner,
+//    * from the stream of Examples given for training.
+//    *
+//    * @param input a stream of Examples
+//    */
+//  def train(input: DataFrame): Unit
 
   /**
    * Gets the current Model used for the Learner.

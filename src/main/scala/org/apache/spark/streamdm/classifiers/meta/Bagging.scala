@@ -18,7 +18,10 @@
 package org.apache.spark.streamdm.classifiers.meta
 
 import java.util.Random
+
 import com.github.javacliparser.{ClassOption, IntOption}
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.classifiers.Classifier
 import org.apache.spark.streamdm.classifiers.model._
 import org.apache.spark.streamdm.core._
@@ -120,4 +123,10 @@ class Bagging extends Classifier {
     if (exampleLearnerSpecification == null) 2
     else exampleLearnerSpecification.out(0).range
   }
+
+  override def predict(stream: DataFrame): DataFrame = ???
+
+  override def init(schema: StructType): Unit = ???
+
+  override def train(stream: DataFrame): Unit = ???
 }

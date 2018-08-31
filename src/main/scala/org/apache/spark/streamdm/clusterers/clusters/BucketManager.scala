@@ -17,7 +17,9 @@
 
 package org.apache.spark.streamdm.clusterers.clusters
 
+import org.apache.spark.ml.linalg
 import org.apache.spark.streamdm.core._
+
 import scala.collection.mutable.Queue
 import scala.util.control.Breaks._
 
@@ -143,4 +145,7 @@ class BucketManager(val n : Int, val maxsize : Int) extends Clusters {
       coreset
     }
   }
+
+  // TODO: Change the underlying API, it doesn't looks nice to receive a classLabel for the clustering methods
+  override def update(vector: linalg.Vector, classLabel: Int, weight: Double) = ???
 }

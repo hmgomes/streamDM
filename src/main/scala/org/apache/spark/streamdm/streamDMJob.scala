@@ -21,6 +21,7 @@ import org.apache.spark._
 import org.apache.spark.streamdm.tasks.Task
 import org.apache.spark.streaming._
 import com.github.javacliparser.ClassOption
+import org.apache.spark.sql.SparkSession
 
 import scala.util.Try
 
@@ -47,17 +48,23 @@ object streamDMJob {
       }
     }
 
-    val ssc = new StreamingContext(conf, Milliseconds(batchInterval))
+//    val ssc = new StreamingContext(conf, Milliseconds(batchInterval))
+
+    val sparkSession = SparkSession
+      .builder()
+      .appName("streamDM")
+      .config(conf)
+      .getOrCreate()
 
     //run task
     val string = if (paramsArgs.length > 0) paramsArgs.mkString(" ")
     else "EvaluatePrequential"
     val task:Task = ClassOption.cliStringToObject(string, classOf[Task], null)
-    task.run(ssc)
+    task.run()
 
     //start the loop
-    ssc.start()
-    ssc.awaitTermination()
+//    sparkSession.start()
+//    sparkSession.awaitTermination()
   }
 }
 

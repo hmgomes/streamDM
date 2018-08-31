@@ -17,6 +17,7 @@
 
 package org.apache.spark.streamdm.streams
 
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.streaming.dstream.DStream
 
 /**
@@ -42,4 +43,13 @@ class PrintStreamWriter extends StreamWriter{
     * @param text
     */
   override def output(text: String) = println(text)
+
+  /**
+    * Process the output.
+    *
+    * @param stream a DataFrame containing the 'output' column
+    */
+  override def output(stream: DataFrame): Unit = {
+
+  }
 }

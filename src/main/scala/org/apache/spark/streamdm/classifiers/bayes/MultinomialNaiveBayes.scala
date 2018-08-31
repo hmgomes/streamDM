@@ -19,6 +19,9 @@ package org.apache.spark.streamdm.classifiers.bayes
 
 import scala.math.log10
 import com.github.javacliparser.IntOption
+import org.apache.spark.ml.linalg
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streaming.dstream._
 import org.apache.spark.streamdm.classifiers.Classifier
 import org.apache.spark.streamdm.core._
@@ -102,6 +105,14 @@ class MultinomialNaiveBayes extends Classifier {
    * @return the Model object used for training
    */
   override def getModel: MultinomialNaiveBayesModel = model
+
+
+  // TOOD: IMPLEMENT THESE!!!
+  override def predict(stream: DataFrame): DataFrame = ???
+
+  override def init(schema: StructType): Unit = ???
+
+  override def train(stream: DataFrame): Unit = ???
 }
 
 /**
@@ -226,6 +237,7 @@ class MultinomialNaiveBayesModel(val numClasses: Int, val numFeatures: Int,
       mergeClassStatistics, mergeClassFeatureStatistics)
   }
 
+  override def update(vector: linalg.Vector, classLabel: Int, weight: Double) = ???
 }
 
 object NaiveBayes {

@@ -16,6 +16,7 @@
  */
 
 package org.apache.spark.streamdm.core
+import org.apache.spark.ml.linalg.Vector
 
 /**
  * A Model trait defines the needed operations on any learning Model. It
@@ -32,4 +33,11 @@ trait Model extends Serializable {
    * @return the updated Model
    */
   def update(change: Example): T
+
+  def update(vector: Vector, classLabel: Int, weight: Double): T
+
+//  def update(change: Example): T
+//
+//  def update(row: Row): T
+
 }

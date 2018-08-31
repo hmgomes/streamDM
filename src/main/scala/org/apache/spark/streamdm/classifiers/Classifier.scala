@@ -17,6 +17,7 @@
 
 package org.apache.spark.streamdm.classifiers
 
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.streamdm.core._
 import org.apache.spark.streaming.dstream._
 
@@ -34,4 +35,8 @@ trait Classifier extends Learner with Serializable {
    * predicted value
    */
   def predict(input: DStream[Example]): DStream[(Example, Double)]
+
+  def predict(stream: DataFrame): DataFrame
+
+//    def predict(stream: DataFrame): DataFrame
 }

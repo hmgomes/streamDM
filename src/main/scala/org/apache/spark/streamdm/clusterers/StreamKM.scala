@@ -22,6 +22,8 @@ import org.apache.spark.streamdm.clusterers.utils._
 import org.apache.spark.streamdm.core._
 import org.apache.spark.streaming.dstream._
 import com.github.javacliparser._
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.core.specification.ExampleSpecification
 
 /**
@@ -117,4 +119,8 @@ class StreamKM extends Clusterer {
         (ex,assignedCl)
      })
   }
+
+  override def init(schema: StructType): Unit = ???
+
+  override def train(stream: DataFrame): Unit = ???
 }

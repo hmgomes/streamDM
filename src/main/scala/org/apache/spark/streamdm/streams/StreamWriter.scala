@@ -19,6 +19,7 @@ package org.apache.spark.streamdm.streams
 
 import org.apache.spark.streaming.dstream.DStream
 import com.github.javacliparser.Configurable
+import org.apache.spark.sql.DataFrame
 
 /**
  * Abstract class that defines the output from a DStream of Strings.
@@ -27,9 +28,9 @@ abstract class StreamWriter extends Configurable {
   /**
    * Process the output.
    * 
-   * @param stream a DStream of Strings for which the output is processed 
+   * @param stream a DataFrame containing the 'output' column
    */
-  def output(stream: DStream[String]): Unit
+  def output(stream: DataFrame): Unit
 
   /**
     * Writes a single line on the output. Useful for writing one-time text, such as headers.

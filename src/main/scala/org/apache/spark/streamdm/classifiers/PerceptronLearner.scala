@@ -24,7 +24,7 @@ import org.apache.spark.streamdm.classifiers.model._
  * The lambda learning rate parameter, and the number of features need to be
  * specified in the associated Task configuration file.
  */
-class PerceptronLearner extends SGDLearner {
+class PerceptronLearner /* extends SGDLearner */ {
 
-  override val loss = new PerceptronLoss()  
+//  override val loss = new PerceptronLoss()
 }

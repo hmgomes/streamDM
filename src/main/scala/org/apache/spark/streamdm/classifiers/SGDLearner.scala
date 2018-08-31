@@ -38,84 +38,84 @@ import org.apache.spark.streamdm.core.specification.ExampleSpecification
  *  <li> Regularization parameter (<b>-p</b>)
  * </ul>
  */
-class SGDLearner extends Classifier {
+class SGDLearner /* extends Classifier */ {
 
-  type T = LinearModel
-
-  val numFeaturesOption: IntOption = new IntOption("numFeatures", 'f',
-    "Number of Features", 3, 1, Integer.MAX_VALUE)
-
-  val lambdaOption: FloatOption = new FloatOption("lambda", 'l',
-    "Lambda", .01, 0, Float.MaxValue)
-
-  val lossFunctionOption: ClassOption = new ClassOption("lossFunction", 'o',
-    "Loss function to use", classOf[Loss], "LogisticLoss")
-
-  val regularizerOption:ClassOption = new ClassOption("regularizer",
-    'r', "Regularizer to use", classOf[Regularizer], "ZeroRegularizer")
-
-  val regularizerParameter: FloatOption = new FloatOption("regParam", 'p',
-    "Regularization parameter", .001, 0, Float.MaxValue)
-
-
-  var model: LinearModel = null
-  val regularizer: Regularizer = regularizerOption.getValue()
-  val loss: Loss = lossFunctionOption.getValue()
-  var exampleLearnerSpecification: ExampleSpecification = null
-
-  /* Init the model based on the algorithm implemented in the learner,
-   * from the stream of instances given for training.
-   *
-   */
-  override def init(exampleSpecification: ExampleSpecification): Unit = {
-    exampleLearnerSpecification = exampleSpecification
-    model = new LinearModel(loss, new DenseInstance(Array.fill[Double]
-      (numFeaturesOption.getValue + 1)(0.0)), numFeaturesOption.getValue)
-  }
-
-  /* Train the model using stochastic gradient descent.
-   *
-   * @param input a stream of instances
-   */
-  override def train(input: DStream[Example]): Unit = {
-    input.foreachRDD(rdd=> {
-      val chModels = rdd.aggregate(
-        //initialize with the previous model
-        (new LinearModel(loss,model.modelInstance,model.numFeatures),0.0))(
-        (mod,inst) => {
-          //for each instance in the RDD,
-          //add the gradient and the regularizer and update the model
-          val grad = mod._1.gradient(inst)
-          val reg = mod._1.regularize(regularizer).map(f =>
-              f*regularizerParameter.getValue)
-          val change = grad.add(reg).map(f => f*lambdaOption.getValue)
-          (mod._1.update(new Example(change)),1.0)
-        },
-        (mod1,mod2) =>
-          //add all the models together, keeping the count of the RDDs used
-          (mod1._1.update(new Example(mod2._1.modelInstance)), 
-                           mod1._2+mod2._2)
-        )
-      if(chModels._2>0)
-        //finally, take the average of the models as the new model
-        model = new LinearModel(loss,
-          chModels._1.modelInstance.map(f => f/chModels._2),
-          model.numFeatures)
-    })
-  }
-
-  /* Predict the label of the Example stream, given the current Model
-   *
-   * @param instance the input Example stream 
-   * @return a stream of tuples containing the original instance and the
-   * predicted value
-   */
-  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
-    input.map(x => (x, model.predict(x)))
-
-  /* Gets the current LinearModel used for the SGDLearner.
-   * 
-   * @return the LinearModel object used for training
-   */
-  override def getModel: LinearModel = model
+//  type T = LinearModel
+//
+//  val numFeaturesOption: IntOption = new IntOption("numFeatures", 'f',
+//    "Number of Features", 3, 1, Integer.MAX_VALUE)
+//
+//  val lambdaOption: FloatOption = new FloatOption("lambda", 'l',
+//    "Lambda", .01, 0, Float.MaxValue)
+//
+//  val lossFunctionOption: ClassOption = new ClassOption("lossFunction", 'o',
+//    "Loss function to use", classOf[Loss], "LogisticLoss")
+//
+//  val regularizerOption:ClassOption = new ClassOption("regularizer",
+//    'r', "Regularizer to use", classOf[Regularizer], "ZeroRegularizer")
+//
+//  val regularizerParameter: FloatOption = new FloatOption("regParam", 'p',
+//    "Regularization parameter", .001, 0, Float.MaxValue)
+//
+//
+//  var model: LinearModel = null
+//  val regularizer: Regularizer = regularizerOption.getValue()
+//  val loss: Loss = lossFunctionOption.getValue()
+//  var exampleLearnerSpecification: ExampleSpecification = null
+//
+//  /* Init the model based on the algorithm implemented in the learner,
+//   * from the stream of instances given for training.
+//   *
+//   */
+//  override def init(exampleSpecification: ExampleSpecification): Unit = {
+//    exampleLearnerSpecification = exampleSpecification
+//    model = new LinearModel(loss, new DenseInstance(Array.fill[Double]
+//      (numFeaturesOption.getValue + 1)(0.0)), numFeaturesOption.getValue)
+//  }
+//
+//  /* Train the model using stochastic gradient descent.
+//   *
+//   * @param input a stream of instances
+//   */
+//  override def train(input: DStream[Example]): Unit = {
+//    input.foreachRDD(rdd=> {
+//      val chModels = rdd.aggregate(
+//        //initialize with the previous model
+//        (new LinearModel(loss,model.modelInstance,model.numFeatures),0.0))(
+//        (mod,inst) => {
+//          //for each instance in the RDD,
+//          //add the gradient and the regularizer and update the model
+//          val grad = mod._1.gradient(inst)
+//          val reg = mod._1.regularize(regularizer).map(f =>
+//              f*regularizerParameter.getValue)
+//          val change = grad.add(reg).map(f => f*lambdaOption.getValue)
+//          (mod._1.update(new Example(change)),1.0)
+//        },
+//        (mod1,mod2) =>
+//          //add all the models together, keeping the count of the RDDs used
+//          (mod1._1.update(new Example(mod2._1.modelInstance)),
+//                           mod1._2+mod2._2)
+//        )
+//      if(chModels._2>0)
+//        //finally, take the average of the models as the new model
+//        model = new LinearModel(loss,
+//          chModels._1.modelInstance.map(f => f/chModels._2),
+//          model.numFeatures)
+//    })
+//  }
+//
+//  /* Predict the label of the Example stream, given the current Model
+//   *
+//   * @param instance the input Example stream
+//   * @return a stream of tuples containing the original instance and the
+//   * predicted value
+//   */
+//  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
+//    input.map(x => (x, model.predict(x)))
+//
+//  /* Gets the current LinearModel used for the SGDLearner.
+//   *
+//   * @return the LinearModel object used for training
+//   */
+//  override def getModel: LinearModel = model
 }

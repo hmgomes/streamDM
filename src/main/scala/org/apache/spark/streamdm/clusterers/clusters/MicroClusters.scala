@@ -18,7 +18,7 @@
 package org.apache.spark.streamdm.clusterers.clusters
 
 import com.github.javacliparser._
-
+import org.apache.spark.ml.linalg
 import org.apache.spark.streamdm.core._
 
 /**
@@ -50,7 +50,7 @@ case class MicroClusters(val microclusters: Array[MicroCluster])
   /**
    * Update the clustering data structure, depending on the Example given.
    *
-   * @param inst the Example based on which the Model is updated
+   * @param change the Example based on which the Model is updated
    * @return the updated MicroClusters object
    */
   override def update(change: Example): MicroClusters = {
@@ -191,4 +191,7 @@ case class MicroClusters(val microclusters: Array[MicroCluster])
     })
     str
   }
+
+  // TODO: Same note as in BucketManager, change the API to fit the unsupervised learning methods.
+  override def update(vector: linalg.Vector, classLabel: Int, weight: Double) = ???
 }

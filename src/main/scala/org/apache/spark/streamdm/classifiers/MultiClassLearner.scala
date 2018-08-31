@@ -18,6 +18,8 @@
 package org.apache.spark.streamdm.classifiers
 
 import com.github.javacliparser.ClassOption
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.classifiers.model._
 import org.apache.spark.streamdm.core._
 import org.apache.spark.streaming.dstream._
@@ -67,6 +69,24 @@ class MultiClassLearner extends Classifier {
 
   }
 
+
+//  /* override */ def init(schema: StructType): Unit = {
+//    this.schema = schema
+//
+//    //Create the learner members of the ensemble
+//    val baseClassifier: Classifier = baseClassifierOption.getValue()
+//    // Assumptions: (1) the class column is named "class"; (2) the number of class labels is set as metadata
+//    numLearners = schema("class").metadata.getLong("num_class").intValue()
+//
+//    classifiers = new Array[Classifier](numLearners)
+//
+//    for (i <- 0 until numLearners) {
+//      classifiers(i) = Utils.copyClassifier(baseClassifier)
+//      classifiers(i).init(schema)
+//    }
+//
+//  }
+
   /* Train the model using the members of the ensemble
      *
      * @param input a stream of instances
@@ -114,5 +134,9 @@ class MultiClassLearner extends Classifier {
     Utils.argmax(predictions)
   }
 
+  override def predict(stream: DataFrame): DataFrame = ???
 
+  override def init(schema: StructType): Unit = ???
+
+  override def train(stream: DataFrame): Unit = ???
 }
