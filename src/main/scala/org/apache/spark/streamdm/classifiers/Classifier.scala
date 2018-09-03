@@ -28,15 +28,11 @@ import org.apache.spark.streaming.dstream._
  */
 trait Classifier extends Learner with Serializable {
 
-  /* Predict the label of the Example stream, given the current Model
+  /** Predict the label of the Example stream, given the current Model
    *
-   * @param instance the input Example stream 
+   * @param stream the input stream of instances
    * @return a stream of tuples containing the original instance and the
    * predicted value
    */
-  def predict(input: DStream[Example]): DStream[(Example, Double)]
-
   def predict(stream: DataFrame): DataFrame
-
-//    def predict(stream: DataFrame): DataFrame
 }

@@ -16,6 +16,7 @@
  */
 
 package org.apache.spark.streamdm.core
+import org.apache.spark.ml.linalg.Vector
 
 /**
  * A ClassificationModel trait defines the needed operations on any classification Model. It
@@ -24,18 +25,23 @@ package org.apache.spark.streamdm.core
  */
 trait ClassificationModel extends Model {
 
+
+//  def predict(instance: Example): Double
+
   /** Predict the label of the Instance, given the current Model
-   *
-   * @param instance the Instance which needs a class predicted
-   * @return a Double representing the class predicted
-   */
-  def predict(instance: Example): Double
+    *
+    * @param vector the vector to be predicted
+    * @return a Double representing the class predicted
+    */
+  def predict(vector: Vector): Int
+
+//  def prob(example: Example): Double
 
   /** Computes the probability for a given label class, given the current Model
     *
-    * @param example the Example which needs a class predicted
+    * @param vector the Example which needs a class predicted
     * @return the predicted probability
     */
-  def prob(example: Example): Double
+  def predictProbability(vector: Vector): Array[Double]
 
 }

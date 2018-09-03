@@ -51,7 +51,7 @@ trait Learner extends Configurable  with Serializable {
    */
   def train(input: DStream[Example]): Unit
 
-  def train(stream: DataFrame): Unit
+  def train(stream: DataFrame): DataFrame
 
 //  /**
 //    * Init the model based on the algorithm implemented in the learner.

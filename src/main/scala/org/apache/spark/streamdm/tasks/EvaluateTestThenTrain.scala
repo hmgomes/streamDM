@@ -27,7 +27,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StructType}
 import org.apache.spark.streamdm.classifiers.trees.HoeffdingTree
 
-import java.time.{Instant, ZoneId, ZonedDateTime}
+import java.time.Instant
 
 /**
  * Task for evaluating a classifier on a stream by testing then training with
@@ -41,7 +41,7 @@ import java.time.{Instant, ZoneId, ZonedDateTime}
  *  <li> Writer (<b>-w</b>), a writer object of type <tt>StreamWriter</tt>
  * </ul>
  */
-class EvaluatePrequential extends Task with Logging {
+class EvaluateTestThenTrain extends Task with Logging {
 
   val learnerOption:ClassOption = new ClassOption("learner", 'l',
     "Learner to use", classOf[Classifier], "org.apache.spark.streamdm.classifiers.trees.HoeffdingTree")
@@ -54,9 +54,6 @@ class EvaluatePrequential extends Task with Logging {
 
   val resultsWriterOption:ClassOption = new ClassOption("resultsWriter", 'w',
     "Stream writer to use", classOf[StreamWriter], "PrintStreamWriter")
-
-  val shouldPrintHeaderOption:FlagOption = new FlagOption("shouldPrintHeader", 'h',
-    "Whether or not to print the evaluator header on the output file")
 
   val sparkSession: SparkSession = SparkSession.builder().getOrCreate()
 
@@ -75,62 +72,44 @@ class EvaluatePrequential extends Task with Logging {
     val evaluator: Evaluator = this.evaluatorOption.getValue()
     evaluator.setSchema(schema)
 
-    val writer: StreamWriter = this.resultsWriterOption.getValue()
-
     val stream: DataFrame = reader.getData()
 
-//    TODO: How to specify not outputting the header now that the output is a table?
-//    if(shouldPrintHeaderOption.isSet) {
-//      writer.output(evaluator.header())
-//    }
-    // First, try to predict the class labels
+    // Obtain the predictions for each row
     val streamWithPredictions = learner.predict(stream)
 
+    // Create a UDF to generate the process time column
+    // TODO: current_timestamp() is not working on Spark 2.3.1, once it is working again this can be removed.
     val currentTimeUDF = udf { () =>
       Instant.ofEpochMilli(System.currentTimeMillis()).toString()
     }
 
-    val streamWithProcessingTime = stream
-      .withColumn("processingTime", to_timestamp(currentTimeUDF()))
+    // Train on the stream data
+    val trainStream = learner.train(streamWithPredictions)
 
-    // Second, learn from the data
-    learner.train(streamWithProcessingTime)
-
-    // Third, create a stream of evaluation results (accuracy, recall, ...)
+    // Create a stream of evaluation results (accuracy, recall, ...)
     val evaluationStream = evaluator.addResult(streamWithPredictions)
 
+    // Prepare the queries and start them
+    val query = evaluationStream
+      .withColumn("processingTime", to_timestamp(currentTimeUDF()))
+      .writeStream
+      .outputMode("update")
+      .queryName("main-query")
+      .format("console")
+      .option("numRows", 100)
+      .option("truncate", false)
+      .start()
 
+    val queryTrain = trainStream
+      .withColumn("processingTime", to_timestamp(currentTimeUDF()))
+      .writeStream
+      .outputMode("update")
+      .queryName("train-query")
+      .format("console")
+      .option("truncate", false)
+      .start()
 
-    //.withColumn("processingDate", current_timestamp())
-
-
-//    import sparkSession.implicits._
-
-//    val query = streamingWithProcessingDate
-//
-//      .groupBy(window($"processingTime", "20 seconds", "5 seconds"))
-//        .count().select("*")
-//
-//      .writeStream
-//      .outputMode("update")
-//      .queryName("main-query")
-//      .format("console")
-//      .option("numRows", 100)
-//      .start()
-//
-//    query.awaitTermination()
-
-
-    //Predict
-//    val predPairs = learner.predict(instances)
-
-    //Train
-//    learner.train(instances)
-
-    //Evaluate
-//    writer.output(evaluator.addResult(predPairs))
-
+    query.awaitTermination()
+    queryTrain.awaitTermination()
   }
 }
-
-

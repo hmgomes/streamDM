@@ -96,9 +96,9 @@ class MultinomialNaiveBayes extends Classifier {
    * @return a stream of tuples containing the original instance and the
    * predicted value
    */
-  override def predict(input: DStream[Example]): DStream[(Example, Double)] = {
-    input.map { x => (x, model.predict(x)) }
-  }
+//  override def predict(input: DStream[Example]): DStream[(Example, Double)] = {
+//    input.map { x => (x, model.predict(x)) }
+//  }
 
   /* Gets the current Model used for the Learner.
    * 
@@ -112,7 +112,7 @@ class MultinomialNaiveBayes extends Classifier {
 
   override def init(schema: StructType): Unit = ???
 
-  override def train(stream: DataFrame): Unit = ???
+  override def train(stream: DataFrame): DataFrame = ???
 }
 
 /**

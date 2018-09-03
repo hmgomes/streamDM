@@ -108,8 +108,8 @@ class MultiClassLearner extends Classifier {
     * @param input a stream of examples
     * @return a stream of examples and numeric values
     */
-  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
-    input.map(x => (x, ensemblePredict(x)))
+//  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
+//    input.map(x => (x, ensemblePredict(x)))
 
   /* Gets the current Model used for the Learner.
   *
@@ -118,25 +118,27 @@ class MultiClassLearner extends Classifier {
   override def getModel: LinearModel = null
 
   /* Predict the label of an example combining the predictions of the members of the ensemble
-   *
+   * TODO: prob was used here assuming only binary classification problems, also it was assuming an Example instead of Vector
    * @param example the Example which needs a class predicted
    * @return the predicted value
    */
-  def ensemblePredict(example: Example): Double = {
-    val predictions: Array[Double] = new Array(sizeEnsemble)
-    for (labelClass <- 0 until sizeEnsemble) {
-      predictions(labelClass) = classifiers(labelClass).getModel.asInstanceOf[ClassificationModel].prob(convertExample(example))
-
-      def convertExample(example: Example): Example = {
-        new Example(example.in, new DenseInstance(Array(if (example.labelAt(0) == labelClass) 1 else 0)))
-      }
-    }
-    Utils.argmax(predictions)
-  }
+  def ensemblePredict(example: Example): Double = ???
+//  {
+//    val predictions: Array[Double] = new Array(sizeEnsemble)
+//    for (labelClass <- 0 until sizeEnsemble) {
+//
+//      predictions(labelClass) = classifiers(labelClass).getModel.asInstanceOf[ClassificationModel].prob(convertExample(example))
+//
+//      def convertExample(example: Example): Example = {
+//        new Example(example.in, new DenseInstance(Array(if (example.labelAt(0) == labelClass) 1 else 0)))
+//      }
+//    }
+//    Utils.argmax(predictions)
+//  }
 
   override def predict(stream: DataFrame): DataFrame = ???
 
   override def init(schema: StructType): Unit = ???
 
-  override def train(stream: DataFrame): Unit = ???
+  override def train(stream: DataFrame): DataFrame = ???
 }

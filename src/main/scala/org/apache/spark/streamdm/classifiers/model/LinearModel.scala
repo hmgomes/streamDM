@@ -46,8 +46,8 @@ class LinearModel(lossFunction: Loss, initialModel: Instance,numberFeatures:Int)
    * @param instance the Instance which needs a class predicted
    * @return a Double representing the class predicted
    */
-  override def predict(instance: Example): Double =
-    loss.predict(modelInstance.dot(instance.in.set(numFeatures,1.0)))
+//  override def predict(instance: Example): Double =
+//    loss.predict(modelInstance.dot(instance.in.set(numFeatures,1.0)))
 
   /* Compute the loss of the direction of the change
    * @param instance the Instance for which the gradient is computed
@@ -68,11 +68,19 @@ class LinearModel(lossFunction: Loss, initialModel: Instance,numberFeatures:Int)
     * @param instance the Instance which needs a class predicted
     * @return the predicted probability
     */
-
   def prob(instance: Example): Double =
     loss.prob(modelInstance.dot(instance.in.set(numFeatures,1.0)))
+
+  override def predictProbability(vector: linalg.Vector): Array[Double] = ???
   
   override def toString = "Model %s".format(modelInstance.toString)
 
   override def update(vector: linalg.Vector, classLabel: Int, weight: Double) = ???
+
+  /** Predict the label of the Instance, given the current Model
+    *
+    * @param vector the vector to be predicted
+    * @return a Double representing the class predicted
+    */
+  override def predict(vector: linalg.Vector) = ???
 }

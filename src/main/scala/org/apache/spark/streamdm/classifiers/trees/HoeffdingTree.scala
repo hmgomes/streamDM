@@ -17,28 +17,23 @@
 
 package org.apache.spark.streamdm.classifiers.trees
 
+import java.time.Instant
+
 import scala.collection.mutable.HashSet
 import scala.math.{sqrt, log => math_log}
 import scala.collection.mutable.Queue
 import org.apache.spark.internal.Logging
 import com.github.javacliparser._
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.functions.{col, lit, udf, window}
+import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.streaming.dstream._
 import org.apache.spark.streamdm.utils.Utils.{argmax, normal}
 import org.apache.spark.streamdm.core._
 import org.apache.spark.streamdm.classifiers._
 import org.apache.spark.streamdm.core.specification.ExampleSpecification
-import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.ml.linalg.Vector
-import org.apache.spark.sql.ForeachWriter
-import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
-import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode, StreamingQueryListener}
-import org.apache.spark.sql.execution.streaming.Sink
-
-import org.apache.spark.sql.Encoders._
+import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout}
 
 /**
  *
@@ -75,12 +70,8 @@ import org.apache.spark.sql.Encoders._
  * </ul>
  */
 
-//case class HTModelState(model: HoeffdingTreeModel)
-case class DummyEventObject(dummy: Int)
-case class InputRow(X: Vector, y: Int)
-
-//case class InputRow(classLabel: Int)
-
+case class StatefulEvaluationEvent(var processedInstances: Int)
+case class InputRow(X: Vector, y: Int, groupId: Int)
 
 class HoeffdingTree extends Classifier with Logging {
 
@@ -127,23 +118,8 @@ class HoeffdingTree extends Classifier with Logging {
 
   var schema: StructType = null
 
-//  var model: HoeffdingTreeModel = null
-
   /* Init the model used for the Learner*/
   override def init(exampleSpecification: ExampleSpecification): Unit = ???
-//  {
-//    espec = exampleSpecification
-//    val numFeatures = espec.numberInputFeatures()
-//    val outputSpec = espec.outputFeatureSpecification(0)
-//    val numClasses = outputSpec.range()
-//    model = new HoeffdingTreeModel(espec, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
-//      true, binaryOnlyOption.isSet(), numGraceOption.getValue(),
-//      tieThresholdOption.getValue, splitConfidenceOption.getValue(),
-//      learningNodeOption.getValue(), nbThresholdOption.getValue(),
-//      noPrePruneOption.isSet(), removePoorFeaturesOption.isSet(), splitAllOption.isSet(),
-//      maxDepthOption.getValue())
-//    model.init()
-//  }
 
   override def init(schema: StructType): Unit = {
     this.schema = schema
@@ -172,84 +148,21 @@ class HoeffdingTree extends Classifier with Logging {
    * @return Unit
    */
   def train(input: DStream[Example]): Unit = ???
-  //    {
-  //      input.foreachRDD {
-  //      rdd =>
-  //        val tmodel = rdd.aggregate(
-  //          new HoeffdingTreeModel(model))(
-  //            (mod, example) => { mod.update(example) },
-  //          (mod1, mod2) => { mod1.merge(mod2, false) })
-  //        model = model.merge(tmodel, true)
-  //    }
 
-  override def train(stream: DataFrame): Unit = {
-    logInfo("train invoked")
-
+  override def train(stream: DataFrame): DataFrame = {
     import stream.sparkSession.implicits._
 
-//    implicit val htModelEncoder = Encoders.kryo[HoeffdingTreeModel]
+    // INT(second(processingTime) / 10)
+    // inputRow.row.getInt( inputRow.row.schema.fieldIndex("class") )) //(window($"processingTime", "20 seconds", "5 seconds"))
+    val streamTrain = stream
+      .selectExpr("X", "class as y", "1 as groupId").as[InputRow]
+      .groupByKey(_.groupId)
+      .mapGroupsWithState(GroupStateTimeout.ProcessingTimeTimeout())(updateAcrossEvents)
 
-    val query = stream
-      .selectExpr("X", "class as y").as[InputRow]
-
-      .groupByKey( _.y ) // inputRow.row.getInt( inputRow.row.schema.fieldIndex("class") )) //(window($"processingTime", "20 seconds", "5 seconds"))
-      .mapGroupsWithState(GroupStateTimeout.NoTimeout)(updateAcrossEvents)
-
-      .writeStream
-      .queryName("train-query")
-      .format("console")
-      .outputMode("update")
-      .start()
-
-//      .outputMode("update")
-//      .format("console")
-//      .start()
-
-    query.awaitTermination()
-
-//    val query = stream
-//      .writeStream
-//      .queryName("train-query")
-//      .outputMode("update")
-//      .option("checkpointLocation", "../data/tmp/train-checkpoint")
-//      .format("org.apache.spark.streamdm.classifiers.trees.HoeffdingTreeTrainSinkProvider")
-//      .start()
-
-
-
-//    val writer = new TrainingWriter(new HTModelState(1))
-//
-////    this.model.merge(writer.executorModel, true)
-//
-//    println("this.model.description in train(stream: DataFrame) = " + this.model.description())
-//
-//    val query = stream
-//      .writeStream
-//      .queryName("train-query")
-//      .foreach(writer)
-
-//      .writeStream
-//      .queryName("training-query")
-//      .foreach(writer)
-//      .start()
+    streamTrain.select("*")
   }
 
-
-//  class trainingWriter(val model: HoeffdingTreeModel) extends ForeachWriter[Row] {
-//
-//    // This is done in the driver, thus we copy the original model to all executors...
-//    val executorModel: HoeffdingTreeModel = model
-//
-//    override def open(partitionId: Long, version: Long): Boolean = true
-//    override def process(row: Row) = {
-//      val indexOfX: Int = row.schema.fieldIndex("X")
-//      val vector:Vector = row(indexOfX).asInstanceOf[Vector]
-//
-//      println("[EXECUTOR CODE] Field index of X = %d and value = %s".format(indexOfX, vector.toString()))
-//    }
-//    override def close(errorOrNull: Throwable) = {}
-//  }
-
+  def predict(input: DStream[Example]): DStream[(Example, Double)] = ???
 
   override def predict(stream: DataFrame): DataFrame = {
     // User defined function (UDF) to apply the model.predict to the column X from stream DataFrame
@@ -260,14 +173,9 @@ class HoeffdingTree extends Classifier with Logging {
     streamWithPredictions
   }
 
-
   def updateAcrossEvents(processingTime: Int,
-                          rows: Iterator[InputRow],
-                         oldState: GroupState[DummyEventObject]): DummyEventObject = {
-
-    logInfo("updateAcrossEvents")
-
-    val currentModel = if(oldState.exists) oldState.get else DummyEventObject(1)
+                         rows: Iterator[InputRow],
+                         oldState: GroupState[StatefulEvaluationEvent]): StatefulEvaluationEvent = {
 
     if(!oldState.exists) {
       HoeffdingTreeLearnerObject.model = new HoeffdingTreeModel(this.schema, numericObserverTypeOption.getValue, splitCriterionOption.getValue(),
@@ -279,21 +187,24 @@ class HoeffdingTree extends Classifier with Logging {
 
       HoeffdingTreeLearnerObject.model.init()
     }
+    val evaluationEvent = if(oldState.exists) oldState.get else StatefulEvaluationEvent(0)
+
+    val newModel = new HoeffdingTreeModel(HoeffdingTreeLearnerObject.model)
 
     for(input <- rows) {
-      HoeffdingTreeLearnerObject.model.update(input.X, input.y, 1.0)
-      oldState.update(new DummyEventObject(currentModel.dummy+1))
+      newModel.update(input.X, input.y, 1.0)
+      evaluationEvent.processedInstances += 1
     }
 
-    currentModel
+    oldState.update(evaluationEvent)
+    HoeffdingTreeLearnerObject.model.merge(newModel, true)
+    println("Current model = " + HoeffdingTreeLearnerObject.model.description())
+    evaluationEvent
   }
-
-  // TODO: Remove
-  def predict(input: DStream[Example]): DStream[(Example, Double)] = ???
 }
 
 /***
-  * The HoeffdingTree object used to hold the model
+  * The HoeffdingTree object used to hold the current model
   */
 object HoeffdingTreeLearnerObject {
   var model: HoeffdingTreeModel = null
@@ -315,9 +226,7 @@ class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 
 
   var activeNodeCount: Int = 0
   var inactiveNodeCount: Int = 0
-  var deactiveNodeCount: Int = 0
   var decisionNodeCount: Int = 0
-
   var baseNumExamples: Int = 0
   var blockNumExamples: Int = 0
 
@@ -329,7 +238,6 @@ class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 
       model.learningNodeType, model.nbThreshold, model.noPrePrune)
     activeNodeCount = model.activeNodeCount
     this.inactiveNodeCount = model.inactiveNodeCount
-    this.deactiveNodeCount = model.deactiveNodeCount
     this.decisionNodeCount = model.decisionNodeCount
     baseNumExamples = model.baseNumExamples + model.blockNumExamples
     this.root = model.root
@@ -351,34 +259,9 @@ class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 
    * @return current model
    */
   override def update(example: Example): HoeffdingTreeModel = ???
-//  {
-//    blockNumExamples += 1
-//
-//    if(blockNumExamples % graceNum == 1){
-//      listExamples.append(example)
-//    }
-//    lastExample = example
-//    if (root == null) {
-//      init
-//    }
-//    // filter the example instance to the responding FoundNode
-//    val foundNode = root.filterToLeaf(example, null, -1)
-//    var leafNode = foundNode.node
-//
-//    if (leafNode.isInstanceOf[LearningNode]) {
-//      val learnNode = leafNode.asInstanceOf[LearningNode]
-//      //update the learning node
-//      learnNode.learn(this, example)
-//    }
-//    this
-//  }
 
   override def update(vector: Vector, classLabel: Int, weight: Double): HoeffdingTreeModel = {
     blockNumExamples += 1
-
-    logInfo("!!!!! Invoked UPDATE !!!!!!")
-
-//    println(s"blockNumExamples = ($blockNumExamples )")
 
     if (root == null) {
       init
@@ -388,9 +271,7 @@ class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 
 
     if (leafNode.isInstanceOf[LearningNode]) {
       val learnNode = leafNode.asInstanceOf[LearningNode]
-//      learnNode.learn(this, vector, classLabel, weight)
-
-learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE, MUST BE CHANGED
+      learnNode.learn(this, vector, classLabel, weight)
     }
 
     this
@@ -487,6 +368,7 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
 
     if (trySplit) {
       if(this.treeHeight() < maxDepth){
+        println("\t The tree height is less than the max depth")
 
           val queue = new Queue[FoundNode]()
           queue.enqueue(new FoundNode(root, null, -1))
@@ -494,15 +376,21 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
           var toSplit = 0
           var totalAddOnWeight = 0.0
           while (queue.size > 0) {
+            println("\t\t the queue.size is greater than 0")
+
             val foundNode = queue.dequeue()
             foundNode.node match {
               case splitNode: SplitNode => {
+                println("\t\t\t the foundNode is a SPLIT node")
                 for (i <- 0 until splitNode.children.length)
                   queue.enqueue(new FoundNode(splitNode.children(i), splitNode, i))
               }
               case activeNode: ActiveLearningNode => {
-                totalAddOnWeight = totalAddOnWeight+ activeNode.addOnWeight()
+                totalAddOnWeight = totalAddOnWeight + activeNode.addOnWeight()
                 numLeaves = numLeaves + 1
+                println("\t\t\t the foundNode is an ACTIVE node, totalAddOnWeight = " +
+                  totalAddOnWeight + " activeNode.addOnWeight() = " + activeNode.addOnWeight() +
+                  " graceNum = " + graceNum)
                 if(activeNode.addOnWeight() > graceNum){
                   attemptToSplit(activeNode, foundNode.parent, foundNode.index)
                   toSplit = toSplit + 1
@@ -519,35 +407,17 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
     this
   }
 
-  /* predict the class of example */
-  def predict(example: Example): Double = ???
-//  {
-//    if (root != null) {
-//      val foundNode = root.filterToLeaf(example, null, -1)
-//      var leafNode = foundNode.node
-//      if (leafNode == null) {
-//        leafNode = foundNode.parent
-//      }
-//      argmax(leafNode.classVotes(this, example))
-//    } else {
-//      0.0
-//    }
-//  }
-
-  def predict(vector: Vector): Double = {
-    val r = new scala.util.Random
-    r.nextInt(2)
-
-//    if(this.root != null) {
-//      val foundNode = root.filterToLeaf(vector, null, -1)
-//      var leafNode = foundNode.node
-//      if (leafNode == null) {
-//          leafNode = foundNode.parent
-//        }
-//        argmax(leafNode.classVotes(this, vector))
-//      } else {
-//        0.0
-//      }
+  override def predict(vector: Vector): Int = {
+    if(this.root != null) {
+      val foundNode = root.filterToLeaf(vector, null, -1)
+      var leafNode = foundNode.node
+      if (leafNode == null) {
+          leafNode = foundNode.parent
+        }
+        argmax(leafNode.classVotes(this, vector)).toInt
+      } else {
+        0
+      }
   }
 
   /* create a new ActiveLearningNode
@@ -558,8 +428,6 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
  */
   def createLearningNode(nodeType: Int, classDistribution: Array[Double]): LearningNode = nodeType match {
     case 0 => new ActiveLearningNode(classDistribution, this.schema)
-    case 1 => new LearningNodeNB(classDistribution, this.schema)
-    case 2 => new LearningNodeNBAdaptive(classDistribution, this.schema)
     case _ => new ActiveLearningNode(classDistribution, this.schema)
   }
 
@@ -571,8 +439,6 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
  */
   def createLearningNode(nodeType: Int, numClasses: Int): LearningNode = nodeType match {
     case 0 => new ActiveLearningNode(new Array[Double](numClasses), this.schema)
-    case 1 => new LearningNodeNB(new Array[Double](numClasses), this.schema)
-    case 2 => new LearningNodeNBAdaptive(new Array[Double](numClasses), this.schema)
     case _ => new ActiveLearningNode(new Array[Double](numClasses), this.schema)
   }
 
@@ -584,8 +450,7 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
  */
   def createLearningNode(nodeType: Int, that: LearningNode): LearningNode = nodeType match {
     case 0 => new ActiveLearningNode(that.asInstanceOf[ActiveLearningNode])
-    case 1 => new LearningNodeNB(that.asInstanceOf[LearningNodeNB])
-    case 2 => new LearningNodeNBAdaptive(that.asInstanceOf[LearningNodeNBAdaptive])
+    case _ => new ActiveLearningNode(that.asInstanceOf[ActiveLearningNode])
   }
 
   /* repalce an InactiveLearningNode with an ActiveLearningNode
@@ -668,80 +533,19 @@ learnNode.classDistribution(classLabel) += 1 // TODO: THIS IS SANITY CHECK CODE,
 
   /** Computes the probability for a given label class, given the current Model
     *
-    * @param example the Example which needs a class predicted
+    * @param vector the instance which needs a class predicted
     * @return the predicted probability
     */
-  override def prob(example: Example): Double = {
-    if (root != null) {
-      val foundNode = root.filterToLeaf(example, null, -1)
+  override def predictProbability(vector: Vector): Array[Double] = {
+    if(this.root != null) {
+      val foundNode = this.root.filterToLeaf(vector, null, -1)
       var leafNode = foundNode.node
-      if (leafNode == null) {
+
+      if(leafNode == null)
         leafNode = foundNode.parent
-      }
-      argmax(normal(leafNode.classVotes(this, example)))
+      normal(leafNode.classVotes(this, vector))
     } else {
-      0.0
+      new Array[Double](this.numClasses)
     }
   }
-}
-
-
-
-
-case class TrainSink (
-                     sqlContext: SQLContext,
-                     parameters: Map[String, String],
-                     partitionColumns: Seq[String],
-                     outputMode: OutputMode) extends Sink {
-
-  override def addBatch(batchId: Long, stream: DataFrame): Unit = {
-    println(s"TrainSink.addBatch($batchId)")
-    //        stream.explain()
-
-//    val microbatch = stream.sparkSession.createDataFrame(
-//      stream.sparkSession.sparkContext.parallelize(stream.collect()), stream.schema)
-
-//    println("How many instances are in the microbatch now = " + microbatch.count())
-
-    // Create the executor copy
-//    val executorModel: HoeffdingTreeModel = new HoeffdingTreeModel(HoeffdingTreeLearnerObject.model)
-//
-//    stream.foreach(row => {
-//      val indexOfX: Int = row.schema.fieldIndex("X")
-//      val indexOfClass: Int = row.schema.fieldIndex("class")
-//      val vector:Vector = row(indexOfX).asInstanceOf[Vector]
-//      val classLabel: Int = row(indexOfClass).asInstanceOf[Int]
-//
-//      // TODO: Weight hard coded to 1.0, might not be ideal for ensembling methods that manipulate it.
-//      executorModel.update(vector, classLabel, 1.0)
-//    } )
-//
-//    HoeffdingTreeLearnerObject.model.merge(executorModel, true)
-
-//    println("Accessing the model from HoeffdingTreeLearnerObject in the Sink = ")
-//    println(HoeffdingTreeLearnerObject.model.description())
-//    println(s"\tBlockNumExamples = " + HoeffdingTreeLearnerObject.model.blockNumExamples)
-//    microbatch.show(20)
-  }
-
-
-}
-
-
-class HoeffdingTreeTrainSinkProvider extends StreamSinkProvider
-  with DataSourceRegister {
-
-  override def createSink(
-                           sqlContext: SQLContext,
-                           parameters: Map[String, String],
-                           partitionColumns: Seq[String],
-                           outputMode: OutputMode): Sink = {
-    TrainSink(
-      sqlContext,
-      parameters,
-      partitionColumns,
-      outputMode)
-  }
-
-  override def shortName(): String = "hoeffdingtree-train"
 }

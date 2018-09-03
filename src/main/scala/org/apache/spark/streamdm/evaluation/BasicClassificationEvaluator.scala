@@ -118,12 +118,12 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
 
     aggConfusionMatrixStream.createOrReplaceTempView("agg_confusion_matrix_stream")
 
-    // TODO: Missing the time taken estimation
+    // TODO: Missing the time taken estimation and Fbeta-score
     val resultsStream = sparkSession.sql("SELECT " +
-      "(TN_sum + TP_sum) / (TP_sum + TN_sum + FP_sum + FN_sum) as accuracy, " +
-      "TP_sum / (TP_sum + FN_sum) as recall, " +
-      "TP_sum / (TP_sum + FP_sum) as precision, " +
-      "TN_sum / (TN_sum + FP_sum) as specificity, " +
+      "round( (TN_sum + TP_sum) / (TP_sum + TN_sum + FP_sum + FN_sum), 4 ) as accuracy, " +
+      "round( TP_sum / (TP_sum + FN_sum), 4 ) as recall, " +
+      "round( TP_sum / (TP_sum + FP_sum), 4 ) as precision, " +
+      "round( TN_sum / (TN_sum + FP_sum), 4 ) as specificity, " +
       "TP_sum as TP, TN_sum as TN, FP_sum as FP, FN_sum as FN FROM agg_confusion_matrix_stream")
 
     resultsStream

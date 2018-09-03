@@ -167,5 +167,5 @@ class Clustream extends Clusterer {
 
   override def init(schema: StructType): Unit = ???
 
-  override def train(stream: DataFrame): Unit = ???
+  override def train(stream: DataFrame): DataFrame = ???
 }

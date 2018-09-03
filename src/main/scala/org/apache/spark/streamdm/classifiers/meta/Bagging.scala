@@ -96,8 +96,8 @@ class Bagging extends Classifier {
     * @param input a stream of examples
     * @return a stream of examples and numeric values
     */
-  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
-    input.map(x => (x, ensemblePredict(x)))
+//  override def predict(input: DStream[Example]): DStream[(Example, Double)] =
+//    input.map(x => (x, ensemblePredict(x)))
 
   /* Gets the current Model used for the Learner.
   *
@@ -110,14 +110,15 @@ class Bagging extends Classifier {
    * @param example the Example which needs a class predicted
    * @return the predicted value
    */
-  def ensemblePredict(example: Example): Double = {
-    val sizeEnsemble = ensembleSizeOption.getValue
-    val predictions: Array[Double] = new Array(sizeEnsemble)
-    for (i <- 0 until sizeEnsemble) {
-      predictions(i) = classifiers(i).getModel.asInstanceOf[ClassificationModel].predict(example)
-    }
-    Utils.majorityVote(predictions, numberClasses)
-  }
+  def ensemblePredict(example: Example): Double = ???
+//  {
+//    val sizeEnsemble = ensembleSizeOption.getValue
+//    val predictions: Array[Double] = new Array(sizeEnsemble)
+//    for (i <- 0 until sizeEnsemble) {
+//      predictions(i) = classifiers(i).getModel.asInstanceOf[ClassificationModel].predict(example)
+//    }
+//    Utils.majorityVote(predictions, numberClasses)
+//  }
 
   def numberClasses(): Integer = {
     if (exampleLearnerSpecification == null) 2
@@ -128,5 +129,5 @@ class Bagging extends Classifier {
 
   override def init(schema: StructType): Unit = ???
 
-  override def train(stream: DataFrame): Unit = ???
+  override def train(stream: DataFrame): DataFrame = ???
 }
