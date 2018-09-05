@@ -62,6 +62,7 @@ class EvaluateTestThenTrain extends Task with Logging {
     val reader: StreamReader = this.streamReaderOption.getValue()
     val schema: StructType = reader.getSchema()
 
+
     // TODO: Must change it to a generic classifier
     val learner: Classifier = this.learnerOption.getValue()
     learner.init(schema)
