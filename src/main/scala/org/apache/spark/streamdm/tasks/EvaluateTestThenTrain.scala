@@ -25,7 +25,6 @@ import org.apache.spark.streamdm.streams._
 import org.apache.spark.streamdm.evaluation.Evaluator
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StructType}
-import org.apache.spark.streamdm.classifiers.trees.HoeffdingTree
 
 import java.time.Instant
 
@@ -43,30 +42,28 @@ import java.time.Instant
  */
 class EvaluateTestThenTrain extends Task with Logging {
 
-  val learnerOption:ClassOption = new ClassOption("learner", 'l',
+  val learnerOption: ClassOption = new ClassOption("learner", 'l',
     "Learner to use", classOf[Classifier], "org.apache.spark.streamdm.classifiers.trees.HoeffdingTree")
 
-  val evaluatorOption:ClassOption = new ClassOption("evaluator", 'e',
+  val evaluatorOption: ClassOption = new ClassOption("evaluator", 'e',
     "Evaluator to use", classOf[Evaluator], "BasicClassificationEvaluator")
 
-  val streamReaderOption:ClassOption = new ClassOption("streamReader", 's',
+  val streamReaderOption: ClassOption = new ClassOption("streamReader", 's',
     "Stream reader to use", classOf[StreamReader], "org.apache.spark.streamdm.streams.DirectoryReader")
 
-  val resultsWriterOption:ClassOption = new ClassOption("resultsWriter", 'w',
+  // TODO: Adjust this option to set the format( <console, kafka, ...> ) from the query
+  val resultsWriterOption: ClassOption = new ClassOption("resultsWriter", 'w',
     "Stream writer to use", classOf[StreamWriter], "PrintStreamWriter")
 
   val sparkSession: SparkSession = SparkSession.builder().getOrCreate()
 
-  /**
-   * Run the task.
-   */
   def run(): Unit = {
 
     val reader: StreamReader = this.streamReaderOption.getValue()
     val schema: StructType = reader.getSchema()
 
     // TODO: Must change it to a generic classifier
-    val learner: HoeffdingTree = this.learnerOption.getValue()
+    val learner: Classifier = this.learnerOption.getValue()
     learner.init(schema)
 
     val evaluator: Evaluator = this.evaluatorOption.getValue()
@@ -78,7 +75,7 @@ class EvaluateTestThenTrain extends Task with Logging {
     val streamWithPredictions = learner.predict(stream)
 
     // Create a UDF to generate the process time column
-    // TODO: current_timestamp() is not working on Spark 2.3.1, once it is working again this can be removed.
+    // TODO: current_timestamp() is not working on Spark 2.3.1, once it is working again this can be adjusted
     val currentTimeUDF = udf { () =>
       Instant.ofEpochMilli(System.currentTimeMillis()).toString()
     }

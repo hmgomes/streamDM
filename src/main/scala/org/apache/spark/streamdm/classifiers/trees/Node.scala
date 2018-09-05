@@ -348,7 +348,7 @@ class ActiveLearningNode(classDistribution: Array[Double])
    * @return new node
    */
   override def merge(that: Node, trySplit: Boolean): Node = {
-    println("~ActiveLearningNode.merge with trySplit = " + trySplit)
+//    println("~ActiveLearningNode.merge with trySplit = " + trySplit)
     if (that.isInstanceOf[ActiveLearningNode]) {
       val node = that.asInstanceOf[ActiveLearningNode]
       //merge addonWeight and class distribution
@@ -364,10 +364,10 @@ class ActiveLearningNode(classDistribution: Array[Double])
 
         this.addonWeight = node.blockAddonWeight
 
-        print("\t~Going to update the classDistribution, node.blockAddonWeight = " + node.blockAddonWeight + " that.blockClassDistribution = ")
-        for(block <- that.blockClassDistribution)
-          print(block + " ")
-        println()
+//        print("\t~Going to update the classDistribution, node.blockAddonWeight = " + node.blockAddonWeight + " that.blockClassDistribution = ")
+//        for(block <- that.blockClassDistribution)
+//          print(block + " ")
+//        println()
 
         for (i <- 0 until classDistribution.length)
           this.classDistribution(i) += that.blockClassDistribution(i)
