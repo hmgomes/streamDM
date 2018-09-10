@@ -287,9 +287,11 @@ class ActiveLearningNode(classDistribution: Array[Double])
    */
   def init(): Unit = {
     if (featureObservers == null) {
-      featureObservers = new Array(this.schema.fields.length - 1)
-      for (i <- 0 until (this.schema.fields.length - 1) ) {
-        featureObservers(i) = FeatureClassObserver.createFeatureClassObserver(classDistribution.length, i)
+      // Use num_attrs from X, such that X was created from VectorAssembler
+//      featureObservers = new Array(this.schema("X").metadata.getMetadataArray("ml_attr")("num_attrs").toInt)
+      featureObservers = new Array(this.schema("X").metadata.getMetadata("ml_attr").getLong("num_attrs").toInt)
+      for (i <- featureObservers.indices ) {
+        featureObservers(i) = FeatureClassObserver.createFeatureClassObserver(classDistribution.length, i, this.schema)
       }
     }
   }
@@ -302,6 +304,11 @@ class ActiveLearningNode(classDistribution: Array[Double])
     */
   override def learn(ht: HoeffdingTreeModel, vector: Vector, classLabel: Int, weight: Double): Unit = {
     init()
+//    println("ActiveLearningNode.learn classLabel = " + classLabel + " featureObservers.length = " + featureObservers.length + " vector = ")
+//    for(v <- vector.toArray) {
+//      print(v + ",")
+//    }
+
     blockClassDistribution(classLabel) += weight
     featureObservers.zipWithIndex.foreach {
       x => x._1.observeClass(classLabel, vector(x._2), weight)

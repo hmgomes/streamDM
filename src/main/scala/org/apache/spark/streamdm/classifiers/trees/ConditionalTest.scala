@@ -192,7 +192,9 @@ class NominalMultiwayTest(fIndex: Int, val numFeatureValues: Int)
   }
 
   // TODO: Implement multi-way conditional test for nominal features
-  override def branch(vector: Vector): Int = ???
+  override def branch(vector: Vector): Int = {
+    vector(fIndex).toInt
+  }
 
   /**
    * Gets the number of maximum branches, -1 if unknown.
@@ -242,7 +244,16 @@ class NumericBinaryRulePredicate(fIndex: Int, val value: Double, val operator: I
   }
 
   // TODO: Implement the binary rule predicate test for branch
-  override def branch(vector: Vector): Int = ???
+  override def branch(vector: Vector): Int = {
+    val featureValue = vector(fIndex).toInt
+    operator match {
+      // operator: 0 ==, 1 <=, 2 < different from MOA which is >
+      case 0 => if (featureValue == value) 0 else 1
+      case 1 => if (featureValue <= value) 0 else 1
+      case 2 => if (featureValue < value) 0 else 1
+      case _ => if (featureValue == value) 0 else 1
+    }
+  }
 
   /**
    * Gets the number of maximum branches, -1 if unknown.

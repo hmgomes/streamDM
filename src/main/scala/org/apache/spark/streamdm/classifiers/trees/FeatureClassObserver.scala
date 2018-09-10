@@ -18,10 +18,11 @@
 package org.apache.spark.streamdm.classifiers.trees
 
 import scala.collection.mutable.TreeSet
-import scala.math.{ min, max }
+import scala.math.{max, min}
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.streamdm.core.specification._
-import org.apache.spark.streamdm.utils.Utils.{ normal, transpose, splitTranspose }
+import org.apache.spark.streamdm.utils.Utils.{normal, splitTranspose, transpose}
 /**
  * Trait FeatureClassObserver for observing the class distribution of one feature.
  * The observer monitors the class distribution of a given feature.
@@ -416,22 +417,23 @@ class GaussianNumericFeatureClassObserver(val numClasses: Int, val featureIndex:
  * object FeatureClassObserver for create FeatureClassObserver.
  */
 object FeatureClassObserver {
-  def createFeatureClassObserver(numClasses: Int, fIndex: Int): FeatureClassObserver = {
-//    if (featureSpec.isNominal())
-//      new NominalFeatureClassObserver(numClasses, fIndex, featureSpec.range())
-//    else
-    // TODO: This is always assuming the feature is numeric!
-    new GaussianNumericFeatureClassObserver(numClasses, fIndex)
+  def createFeatureClassObserver(numClasses: Int, fIndex: Int, schema: StructType): FeatureClassObserver = {
+    val attributesMetadataFromX = schema("X").metadata.getMetadata("ml_attr").getMetadata("attrs").getMetadataArray("numeric")
+    val featureIdentifier = attributesMetadataFromX(fIndex).getString("name")
+
+    if (schema(featureIdentifier).metadata.getString("type") == "nominal")
+      new NominalFeatureClassObserver(numClasses, fIndex, schema(featureIdentifier).metadata.getLong("num_values").toInt)
+    else
+      new GaussianNumericFeatureClassObserver(numClasses, fIndex)
   }
 
   def createFeatureClassObserver(observer: FeatureClassObserver): FeatureClassObserver = {
-//    if (observer.isInstanceOf[NominalFeatureClassObserver])
-//      new NominalFeatureClassObserver(observer.asInstanceOf[NominalFeatureClassObserver])
-//    else
-
-    // TODO: This test is unnecessary if we always assume the features are numeric
-    if (observer.isInstanceOf[GaussianNumericFeatureClassObserver])
+    if(observer.isInstanceOf[NominalFeatureClassObserver])
+      new NominalFeatureClassObserver(observer.asInstanceOf[NominalFeatureClassObserver])
+    else
+    if(observer.isInstanceOf[GaussianNumericFeatureClassObserver])
       new GaussianNumericFeatureClassObserver(observer.asInstanceOf[GaussianNumericFeatureClassObserver])
-    else new NullFeatureClassObserver
+    else
+      new NullFeatureClassObserver
   }
 }

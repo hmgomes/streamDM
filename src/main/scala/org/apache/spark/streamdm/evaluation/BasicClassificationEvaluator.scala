@@ -72,7 +72,7 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
   override def addResult(stream: DataFrame): DataFrame = {
     this.startTime = System.nanoTime()
 
-    val numClasses = this.schema("class").metadata.getLong("num_class").toInt //exampleLearnerSpecification.outputFeatureSpecification(0).range
+    val numClasses = this.schema("class").metadata.getLong("num_values").toInt //exampleLearnerSpecification.outputFeatureSpecification(0).range
     var resultsStream: DataFrame = stream
     if(numClasses == 2) {
       val confusionMatrix = ConfusionMatrix.computeMatrix(stream)
@@ -138,7 +138,7 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
   def calculateMetricsMultiClass(confMat : Map[(Int, Int), Double]): String = ???
 //  {
 //    val timeTaken = (System.nanoTime() - startTime)/1e+9 // divide by 1e+9 to obtain the estimation in seconds.
-//    val numClasses = this.schema("class").metadata.getLong("num_class").toInt
+//    val numClasses = this.schema("class").metadata.getLong("num_values").toInt
 //    val instancesSeenBatch = confMat.values.reduce(_+_)
 //    val accuracy = confMat.filter(t => t._1._1 == t._1._2).values.reduce(_+_) / instancesSeenBatch
 //    val recallPerClass = calculateRecallMultiClass(confMat)
@@ -171,7 +171,7 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
     */
   def calculateRecallMultiClass(confMat : Map[(Int, Int), Double]): Array[Double] = ???
 //  {
-//    val numClasses = this.schema("class").metadata.getLong("num_class").toInt
+//    val numClasses = this.schema("class").metadata.getLong("num_values").toInt
 //    var recallPerClassIndex = Array.fill(numClasses){0.0}
 //
 //    for(groundTruth <- Range(0, numClasses)) {
@@ -197,7 +197,7 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
     */
   def calculatePrecisionMultiClass(confMat : Map[(Int, Int), Double]): Array[Double] = ???
 //  {
-//    val numClasses = this.schema("class").metadata.getLong("num_class").toInt
+//    val numClasses = this.schema("class").metadata.getLong("num_values").toInt
 //    var precisionPerClassIndex = Array.fill(numClasses){0.0}
 //
 //    for(predicted <- Range(0, numClasses)) {
@@ -223,7 +223,7 @@ class BasicClassificationEvaluator extends Evaluator with Logging {
     */
   override def header(): String = ???
 //  {
-//    val numClasses = this.schema("class").metadata.getLong("num_class").toInt
+//    val numClasses = this.schema("class").metadata.getLong("num_values").toInt
 //    if(numClasses == 2) {
 //      "Runtime,Accuracy,Recall,Precision,F(beta=%.1f)-score,Specificity,TP,FN,FP,TN".format(this.betaOption.getValue())
 //    }

@@ -132,16 +132,16 @@ class HoeffdingTree extends Classifier with Logging {
 
   /** Train the model from the stream of instances given for training.
    *
-   * @param stream the input stream DataFrame, assumes "X" and "class" columns are present.
+   * @param stream the input stream DataFrame, assumes "X" and "meta" columns are present.
    * @return statistics about the training (e.g. number of processed instances so far)
    */
   override def train(stream: DataFrame): DataFrame = {
     import stream.sparkSession.implicits._
 
     // INT(second(processingTime) / 10)
-    // inputRow.row.getInt( inputRow.row.schema.fieldIndex("class") )) //(window($"processingTime", "20 seconds", "5 seconds"))
+    // inputRow.row.getInt( inputRow.row.schema.fieldIndex("meta") )) //(window($"processingTime", "20 seconds", "5 seconds"))
     val streamTrain = stream
-      .selectExpr("X", "class as y", "1 as groupId").as[InputRow]
+      .selectExpr("X", "INT(class) as y", "1 as groupId").as[InputRow]
       .groupByKey(_.groupId)
       .mapGroupsWithState(GroupStateTimeout.ProcessingTimeTimeout())(trainAcrossBatches)
 
@@ -179,7 +179,7 @@ class HoeffdingTree extends Classifier with Logging {
 
     oldState.update(trainEvent)
     HoeffdingTreeLearnerObject.model.merge(newModel, trySplit = true)
-    println("Current model = " + HoeffdingTreeLearnerObject.model.description())
+//    println("Current model = " + HoeffdingTreeLearnerObject.model.description())
 
     trainEvent
   }
@@ -201,7 +201,7 @@ class HoeffdingTreeModel(val schema: StructType, val numericObserverType: Int = 
   type T = HoeffdingTreeModel
 
   val numFeatures: Int = schema.fields.length - 1 // Ignore the class field
-  val numClasses: Int = this.schema("class").metadata.getLong("num_class").toInt
+  val numClasses: Int = this.schema("class").metadata.getLong("num_values").toInt
 
   var activeNodeCount: Int = 0
   var inactiveNodeCount: Int = 0

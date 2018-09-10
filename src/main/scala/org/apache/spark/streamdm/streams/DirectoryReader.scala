@@ -33,52 +33,47 @@ class DirectoryReader extends StreamReader {
   val inputStreamPathOption: StringOption = new StringOption("inputStreamPath", 'f',
     "Input Stream Path", "../data/stream")
 
-  val formatHeaderOption: StringOption = new StringOption("formatHeader", 'h',
-    "Stream files format", "csv")
-
   val formatStreamOption: StringOption = new StringOption("formatStream", 'k',
     "Header file format", "csv")
 
-  val classIdentifierOption: StringOption = new StringOption("classIdentifier", 'c',
-    "The class attribute identifier in the schema file", "class")
+//  val metaAttributeOption: StringOption = new StringOption("metaAttribute", 'c',
+//    "The class attribute identifier in the schema file", "class")
 
   val sparkSession: SparkSession = SparkSession.builder().getOrCreate()
 
   var schema: StructType = null
 
   override def getData(): DataFrame = {
-    val streamDF = sparkSession
-      .readStream
-      .format(this.formatStreamOption.getValue)
-      .schema(this.getSchema())
-      .option("maxFilesPerTrigger", 1)
-      .load(this.inputStreamPathOption.getValue())
 
-    // getSchema adds the class column
-    val inputColumns = streamDF.columns.filter(_ != "class")
-    val assembler = new VectorAssembler()
-      .setInputCols(inputColumns)
-      .setOutputCol("X")
+    this.formatStreamOption.getValue match {
+      case "csv" =>
+        val streamDF = sparkSession
+          .readStream
+          .format(this.formatStreamOption.getValue)
+          .schema(this.getSchema())
+          .option("maxFilesPerTrigger", 1)
+          .load(this.inputStreamPathOption.getValue())
 
-    assembler.transform(streamDF)
+        streamDF
+      case _ =>
+        throw new Exception("The streaming data must be formatted as a CSV file, other formats are not supported yet.")
+    }
   }
 
   /**
-    * Obtains the Schema with feature specifications and other meta-data (e.g. num_class)
+    * Obtains the Schema with feature specifications and other meta-data (e.g. num_values)
     *
     * @return an Schema of the features
     */
   override def getSchema(): StructType = {
-    // TODO: Assumes the input file format is going to be CSV
-
-    import sparkSession.implicits._
-
-    val formatType = this.formatHeaderOption.getValue
-    val classIdentifier = this.classIdentifierOption.getValue
-
     if (this.schema == null) {
+
+      import sparkSession.implicits._
+
+      val formatType = this.schemaFileNameOption.getValue.splitAt(this.schemaFileNameOption.getValue.lastIndexOf('.')+1)._2
+
       formatType match {
-        case "arff" =>
+        case "header" =>
           val rawDF: DataFrame = sparkSession
             .read
             .option("header", false)
@@ -103,6 +98,7 @@ class DirectoryReader extends StreamReader {
                   .flatMap(m => m.getString(0).replaceAll("[{}]", "").split(",")).collect()
 
               val metadataBuilder = new MetadataBuilder()
+                .putLong("num_values", nominalValues.length)
                 .putStringArray("values", nominalValues) // the nominal values in string form (original)
                 .putString("type", "nominal")
 
@@ -110,21 +106,9 @@ class DirectoryReader extends StreamReader {
               for(index <- nominalValues.indices)
                 metadataBuilder.putLong(nominalValues(index), index)
 
-              // Special case for the class
-              if(attributeIdentifier == classIdentifier) {
-                metadataBuilder
-                  .putLong("num_class", nominalValues.length) // save the number of class labels (could be inferred)
-                  .putString("identifier", classIdentifier) // save the original class identifier
-
-                // The attribute is identifed as "class" just to facilitate further manipulation
-                schemaBuffer += StructField("class", IntegerType, true, metadataBuilder.build())
-              }
-              // Not the class label
-              else {
-                // Just for consistency with the attribute "class", the attribute main identifier matches this one.
-                metadataBuilder.putString("identifier", attributeIdentifier)
-                schemaBuffer += StructField(attributeIdentifier, IntegerType, true, metadataBuilder.build())
-              }
+              // In case attributes are renamed latter, the original identifier is kept in "identifier"
+              metadataBuilder.putString("identifier", attributeIdentifier)
+              schemaBuffer += StructField(attributeIdentifier, StringType, true, metadataBuilder.build())
             }
             // NUMERIC ATTRIBUTE (assume anything that is not nominal to be numerical, i.e. DoubleType)
             else {
@@ -135,37 +119,37 @@ class DirectoryReader extends StreamReader {
               schemaBuffer += StructField(attributeIdentifier, DoubleType, true, metadataBuilder.build())
             }
           }
-
           this.schema = new StructType(schemaBuffer.toArray)
 
-          // TODO: Test to access the class values from the metadata previously encoded in the class attribute
-//          println("$$$ classValue = ")
-//          val myClassValues = this.schema(this.schema.fieldIndex("class")).metadata.getStringArray("values")
+//          TODO: Reading from CSV is difficult since it is difficult to infer nominal features.
+//        case "csv" =>
+//          // This infers the Schema
+//          val rawDF: DataFrame = sparkSession
+//            .read
+//            .option("header", true)
+//            .option("inferSchema", true)
+//            .csv(this.schemaFileNameOption.getValue)
 //
-//          for(cID <- myClassValues ) {
-//            println(cID + " => " + this.schema(this.schema.fieldIndex("class")).metadata.getLong(cID))
+//          // TODO: Assumes all other columns are numeric
+//          for(att <- rawDF.columns) {
+//
 //          }
-//          println()
-        case "csv" =>
-          // This infers the Schema
-          val rawDF: DataFrame = sparkSession
-            .read
-            .option("header", true)
-            .option("inferSchema", true)
-            .csv(this.schemaFileNameOption.getValue)
-
-          // TODO: Assumes that the problem is binary. Best option would be read this from the input data (e.g. distinct on the class field)
-          // class_identifier saves the original class identifier.
-          val metadataClass = new MetadataBuilder()
-            .putLong("num_class", 2)
-            .putString("identifier", classIdentifier)
-            .build()
-
-          // This renames the original classIdentifier to "class"
-          val newColumnClass = rawDF.col(classIdentifier).as("class", metadataClass)
-          val streamDF = rawDF.withColumn("class", newColumnClass)
-          this.schema = streamDF.schema
+//
+//          // TODO: Assumes that the problem is binary classification.
+//          // Best option would be read this from the input data (e.g. distinct on the class field)
+//          val metadataMeta = new MetadataBuilder()
+//            .putString("type", "nominal")
+//            .putLong("num_values", 2)
+//            .putStringArray("values", Array("0", "1"))
+//            .putString("identifier", metaAttributeIdentifier)
+//
+//
+//          // This renames the original classIdentifier to "meta"
+////          val newColumnClass = rawDF.col(metaAttributeIdentifier).as("meta", metadataClass)
+////          val streamDF = rawDF.withColumn("meta", newColumnClass)
+//          this.schema = streamDF.schema
         case _ =>
+          throw new Exception("Unknown schema file header format = '" + formatType + "'")
       }
     }
 

@@ -24,9 +24,9 @@ import org.apache.spark.streamdm.classifiers._
 import org.apache.spark.streamdm.streams._
 import org.apache.spark.streamdm.evaluation.Evaluator
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{StructType}
-
 import java.time.Instant
+
+import org.apache.spark.streamdm.preprocess.{StreamFilterRows, StreamPrepareForClassification}
 
 /**
  * Task for evaluating a classifier on a stream by testing then training with
@@ -55,24 +55,36 @@ class EvaluateTestThenTrain extends Task with Logging {
   val resultsWriterOption: ClassOption = new ClassOption("resultsWriter", 'w',
     "Stream writer to use", classOf[StreamWriter], "PrintStreamWriter")
 
+  val classAttributeOption: StringOption = new StringOption("classAttribute", 'c',
+    "The class attribute identifier", "class")
+
   val sparkSession: SparkSession = SparkSession.builder().getOrCreate()
 
   def run(): Unit = {
 
     val reader: StreamReader = this.streamReaderOption.getValue()
-    val schema: StructType = reader.getSchema()
 
+    val streamRaw: DataFrame = reader.getData()
 
-    // TODO: Must change it to a generic classifier
+    // Vectors cannot represent null values and StreamPrepareForClassification executes a VectorAssembler, thus
+    //  first it is necessary to get rid of rows that contain null values.
+    // TODO: create an option to select the strategy to deal with null values.
+    val preprocessedStream = new StreamFilterRows()
+      .setDropNullRows(true)
+      .transform(streamRaw)
+
+    val stream = new StreamPrepareForClassification()
+      .setClassAttributeIdentifier(this.classAttributeOption.getValue)
+      .setNominalFeaturesMap(streamRaw)
+      .transform(preprocessedStream)
+
     val learner: Classifier = this.learnerOption.getValue()
-    learner.init(schema)
+    learner.init(stream.schema)
 
     val evaluator: Evaluator = this.evaluatorOption.getValue()
-    evaluator.setSchema(schema)
+    evaluator.setSchema(stream.schema)
 
-    val stream: DataFrame = reader.getData()
-
-    // Obtain the predictions for each row
+    // *** PREDICTIONS ***: Obtain the predictions for each row
     val streamWithPredictions = learner.predict(stream)
 
     // Create a UDF to generate the process time column
@@ -81,10 +93,10 @@ class EvaluateTestThenTrain extends Task with Logging {
       Instant.ofEpochMilli(System.currentTimeMillis()).toString()
     }
 
-    // Train on the stream data
+    // *** TRAIN ***: Train on the stream data
     val trainStream = learner.train(streamWithPredictions)
 
-    // Create a stream of evaluation results (accuracy, recall, ...)
+    // *** EVALUATE ***: Create a stream of evaluation results (accuracy, recall, ...)
     val evaluationStream = evaluator.addResult(streamWithPredictions)
 
     // Prepare the queries and start them
