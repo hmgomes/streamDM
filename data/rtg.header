@@ -1,0 +1,13 @@
+@relation 'generators.RandomTreeGenerator '
+
+@attribute nominal1 {value1,value2,value3,value4,value5}
+@attribute nominal2 {value1,value2,value3,value4,value5}
+@attribute nominal3 {value1,value2,value3,value4,value5}
+@attribute nominal4 {value1,value2,value3,value4,value5}
+@attribute nominal5 {value1,value2,value3,value4,value5}
+@attribute numeric1 numeric
+@attribute numeric2 numeric
+@attribute numeric3 numeric
+@attribute numeric4 numeric
+@attribute numeric5 numeric
+@attribute class {class1,class2}

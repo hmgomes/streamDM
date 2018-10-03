@@ -62,17 +62,16 @@ class EvaluateTestThenTrain extends Task with Logging {
 
   def run(): Unit = {
 
+    // Reader
     val reader: StreamReader = this.streamReaderOption.getValue()
-
     val streamRaw: DataFrame = reader.getData()
 
-    // Vectors cannot represent null values and StreamPrepareForClassification executes a VectorAssembler, thus
-    //  first it is necessary to get rid of rows that contain null values.
-    // TODO: create an option to select the strategy to deal with null values.
+    // Preprocessing
     val preprocessedStream = new StreamFilterRows()
       .setDropNullRows(true)
       .transform(streamRaw)
 
+    // Another step in the preprocessing (map nominal and assemble X)
     val stream = new StreamPrepareForClassification()
       .setClassAttributeIdentifier(this.classAttributeOption.getValue)
       .setNominalFeaturesMap(streamRaw)
@@ -96,7 +95,7 @@ class EvaluateTestThenTrain extends Task with Logging {
     // *** TRAIN ***: Train on the stream data
     val trainStream = learner.train(streamWithPredictions)
 
-    // *** EVALUATE ***: Create a stream of evaluation results (accuracy, recall, ...)
+    // *** EVALUATE ***: Evaluation results (accuracy, ...)
     val evaluationStream = evaluator.addResult(streamWithPredictions)
 
     // Prepare the queries and start them
